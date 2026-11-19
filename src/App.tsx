@@ -66,6 +66,10 @@ import {
 	runSelectionQuickChat,
 } from "@/lib/agent/selection-quick-chat";
 import { pinActiveSelection } from "@/lib/agent/selection-store";
+import {
+	listenChatGptOpenInMain,
+	openChatGptSidebar,
+} from "@/lib/chatgpt/window";
 import { closeTopOverlay } from "@/lib/core/overlay-stack";
 import { isMacOS, isTauri } from "@/lib/core/tauri";
 import { cn } from "@/lib/core/utils";
@@ -323,6 +327,24 @@ export default function App() {
 					// ignore
 				}
 			})();
+		}).then((off) => {
+			if (cancelled) off();
+			else unlisten = off;
+		});
+		return () => {
+			cancelled = true;
+			unlisten?.();
+		};
+	}, []);
+
+	// Document and feature windows hand ChatGPT selection actions back to the
+	// main window because only this window owns the native right-rail surface.
+	useEffect(() => {
+		if (!isTauri()) return;
+		let cancelled = false;
+		let unlisten: (() => void) | undefined;
+		void listenChatGptOpenInMain((prompt) => {
+			void openChatGptSidebar(prompt);
 		}).then((off) => {
 			if (cancelled) off();
 			else unlisten = off;

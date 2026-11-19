@@ -63,6 +63,7 @@ type PdfCardStackProps = {
 	/** Shared hover-hide contract of the pin-attached cards. */
 	onCardHoverEnter: () => void;
 	onCardHoverLeave: () => void;
+	paperPath?: string;
 	ask: {
 		thread: PdfAskThread | null;
 		/** Catalog title for the external "open in chat" query. */
@@ -139,6 +140,7 @@ export const PdfCardStack = memo(function PdfCardStack({
 	cardScreen,
 	onCardHoverEnter,
 	onCardHoverLeave,
+	paperPath,
 	ask,
 	translate,
 	visual,
@@ -161,6 +163,12 @@ export const PdfCardStack = memo(function PdfCardStack({
 					showHighlight={selectionMenu.showHighlight}
 					showTranslate={selectionMenu.showTranslate}
 					selectionText={selectionMenu.state.anchor.quote}
+					source={{
+						sourcePath: paperPath,
+						sourceTitle: ask.paperTitle,
+						sourceUrl: ask.paperLink,
+						page: selectionMenu.state.anchor.page,
+					}}
 					contributionContext={selectionMenu.contributionContext}
 				/>
 			) : null}

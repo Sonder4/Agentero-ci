@@ -66,7 +66,7 @@ tempfile = { workspace = true }
 # re-exported as `crate::core::*`. Must stay free of tauri/wry/tao.
 agentero-core = { path = "../crates/agentero-core" }
 agentero-mcp = { path = "../crates/agentero-mcp", optional = true }
-tauri = { version = "2", features = [], optional = true }
+tauri = { version = "2", features = ["unstable"], optional = true }
 tauri-plugin-opener = { version = "2", optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

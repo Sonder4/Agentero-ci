@@ -2,12 +2,12 @@
 
 import type { ComponentProps } from "react";
 
+import { openChatGptSidebar } from "@/lib/chatgpt/window";
 import { openExternalUrl } from "@/lib/core/open-external";
 
 /**
- * Open-in-Chat: send a text query to an external AI chat platform
- * (ChatGPT / Claude). URLs open through the system handler so Tauri
- * webviews leave the app.
+ * Open-in-Chat: send a text query to ChatGPT's embedded right rail or to a
+ * platform that opens through the system browser handler.
  */
 
 export function ChatGPTIcon(props: ComponentProps<"svg">) {
@@ -29,7 +29,7 @@ export function ClaudeIcon(props: ComponentProps<"svg">) {
 }
 
 export function openInChatGPT(query: string): void {
-	openExternalUrl(`https://chatgpt.com/?q=${encodeURIComponent(query)}`);
+	void openChatGptSidebar(query);
 }
 
 export function openInClaude(query: string): void {

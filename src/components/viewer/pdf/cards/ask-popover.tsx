@@ -42,6 +42,7 @@ import { SelectionCard } from "@/components/viewer/pdf/cards/selection-card";
 import { isEditableClipboardTarget } from "@/components/viewer/pdf/host-dom";
 import type { CardScreenPoint } from "@/components/viewer/pdf/types";
 import { useImeGuard } from "@/hooks/use-ime-guard";
+import { chatGptSourceUrl } from "@/lib/chatgpt/window";
 import { cn } from "@/lib/core/utils";
 import { threadHasUserQuestion, threadTitle } from "@/lib/pdf/ask/schema";
 import type { PdfAskThread } from "@/lib/pdf/ask/types";
@@ -168,7 +169,8 @@ export function AskPopover({
 		const quote = thread.anchor.quote?.trim();
 		const lines: string[] = [t("pdfAsk.openInPrompt"), ""];
 		if (paperTitle?.trim()) lines.push(`Paper: ${paperTitle.trim()}`);
-		if (paperLink?.trim()) lines.push(`Link: ${paperLink.trim()}`);
+		const sourceUrl = chatGptSourceUrl(paperLink);
+		if (sourceUrl) lines.push(`Link: ${sourceUrl}`);
 		// Page only when the anchor has PDF geometry (plaza / feed asks have none).
 		if (thread.anchor.rects.length > 0) {
 			lines.push(`Page: ${thread.anchor.page}`);

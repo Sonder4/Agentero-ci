@@ -318,6 +318,10 @@ function LayoutElementMenu({
 		<SelectionMenu
 			screen={action.screen}
 			selectionText={quote}
+			source={{
+				sourcePath: paperRelPath || paperAbsPath || undefined,
+				page: anchor.page,
+			}}
 			onAddToChat={addToChat}
 			onAsk={ask}
 			onHighlight={

@@ -2881,6 +2881,7 @@ function PdfViewerInner({
 					cardScreen={cardScreen}
 					onCardHoverEnter={markCardHoverEnter}
 					onCardHoverLeave={scheduleHoverHide}
+					paperPath={paperRelPath ?? undefined}
 					ask={cardAsk}
 					translate={cardTranslate}
 					visual={cardVisual}

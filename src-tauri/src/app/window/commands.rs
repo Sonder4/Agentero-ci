@@ -1,7 +1,11 @@
 //! Multi-window helpers.
 
 use sha2::{Digest, Sha256};
-use tauri::{AppHandle, Emitter, EventTarget, Manager, WebviewUrl, WebviewWindowBuilder};
+use tauri::{
+    webview::{NewWindowResponse, WebviewBuilder},
+    AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl,
+    WebviewWindowBuilder,
+};
 
 use crate::core::log_util::OpTimer;
 
@@ -21,8 +25,22 @@ const TRAFFIC_LIGHT_X: f64 = 14.0;
 const SETTINGS_TRAFFIC_LIGHT_Y: f64 = 16.0;
 
 pub const SETTINGS_WINDOW_LABEL: &str = "settings";
+pub const CHATGPT_SIDEBAR_WEBVIEW_LABEL: &str = "chatgpt-sidebar";
 pub const SETTINGS_SECTION_REQUESTED_EVENT: &str = "settings:section-requested";
 pub const SETTINGS_VAULT_REQUESTED_EVENT: &str = "settings:vault-requested";
+
+const CHATGPT_URL: &str = "https://chatgpt.com/";
+const CHATGPT_QUERY_MAX_BYTES: usize = 32 * 1024;
+static CHATGPT_WEBVIEW_OPEN_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+#[derive(Debug, Clone, Copy, serde::Deserialize, specta::Type)]
+#[serde(rename_all = "camelCase")]
+pub struct ChatGptSidebarBounds {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+}
 
 /// Broadcast when a singleton child window closes (or fails to build).
 /// Wire naming follows docs/architecture.md (`domain:event`);
@@ -66,6 +84,40 @@ fn raise_existing_window(window: &tauri::WebviewWindow) {
     }
     #[cfg(not(windows))]
     let _ = window.set_focus();
+}
+
+fn chatgpt_url(query: Option<&str>) -> Result<Url, String> {
+    let mut url = Url::parse(CHATGPT_URL).map_err(|_| "chatgpt_url_invalid".to_string())?;
+    let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
+        return Ok(url);
+    };
+    if query.len() > CHATGPT_QUERY_MAX_BYTES {
+        return Err("chatgpt_query_too_large".into());
+    }
+    url.query_pairs_mut().append_pair("q", query);
+    Ok(url)
+}
+
+fn is_safe_chatgpt_navigation(url: &Url) -> bool {
+    matches!(url.scheme(), "https" | "about")
+}
+
+fn chatgpt_sidebar_geometry(
+    bounds: ChatGptSidebarBounds,
+) -> Result<(LogicalPosition<f64>, LogicalSize<f64>), String> {
+    let values = [bounds.x, bounds.y, bounds.width, bounds.height];
+    if values.iter().any(|value| !value.is_finite())
+        || bounds.x < 0.0
+        || bounds.y < 0.0
+        || bounds.width < 1.0
+        || bounds.height < 1.0
+    {
+        return Err("invalid_chatgpt_sidebar_bounds".into());
+    }
+    Ok((
+        LogicalPosition::new(bounds.x, bounds.y),
+        LogicalSize::new(bounds.width, bounds.height),
+    ))
 }
 
 /// Enables macOS native fullscreen space and window tiling (Move & Resize).
@@ -118,12 +170,17 @@ pub async fn window_new(app: AppHandle) -> Result<(), String> {
     // navigates to a dropped PDF.
     // Secondary windows inherit platform defaults — frontend still preventDefaults.
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    let mut builder =
-        WebviewWindowBuilder::new(&app, &label, WebviewUrl::App("index.html?fresh=1".into()))
-            .title("Agentero")
-            .inner_size(1280.0, 800.0)
-            .min_inner_size(700.0, 520.0)
-            .resizable(true);
+    let mut builder = app
+        .state::<crate::core::webview::WebviewProxyConfig>()
+        .apply(WebviewWindowBuilder::new(
+            &app,
+            &label,
+            WebviewUrl::App("index.html?fresh=1".into()),
+        ))
+        .title("Agentero")
+        .inner_size(1280.0, 800.0)
+        .min_inner_size(700.0, 520.0)
+        .resizable(true);
 
     #[cfg(target_os = "macos")]
     {
@@ -163,6 +220,106 @@ pub async fn window_new(app: AppHandle) -> Result<(), String> {
     }
 
     op.finish_ok_extra(format!("label={label}"));
+    Ok(())
+}
+
+/// Open, position, and focus the ChatGPT child WebView embedded in Agentero's
+/// right rail. The child reuses the main window's persistent WebView2
+/// environment and proxy snapshot. Its webview label is absent from Tauri
+/// capabilities, so the remote origin has no Agentero IPC, Vault, or document
+/// access. A query navigates the child through ChatGPT Web's `?q=` entry point.
+/// Keep this async: creating a child WebView inside a synchronous command can
+/// deadlock Windows WebView2 when called from another WebView's IPC callback.
+#[tauri::command]
+#[specta::specta]
+pub async fn chatgpt_sidebar_open(
+    app: AppHandle,
+    query: Option<String>,
+    bounds: ChatGptSidebarBounds,
+) -> Result<(), String> {
+    let op = OpTimer::start("chatgpt_sidebar_open");
+    let url = match chatgpt_url(query.as_deref()) {
+        Ok(url) => url,
+        Err(error) => {
+            op.finish_err_msg("url", &error);
+            return Err(error);
+        }
+    };
+    let has_query = url.query().is_some();
+    let (position, size) = match chatgpt_sidebar_geometry(bounds) {
+        Ok(geometry) => geometry,
+        Err(error) => {
+            op.finish_err_msg("bounds", &error);
+            return Err(error);
+        }
+    };
+    let _guard = CHATGPT_WEBVIEW_OPEN_LOCK.lock().await;
+
+    if let Some(webview) = app.get_webview(CHATGPT_SIDEBAR_WEBVIEW_LABEL) {
+        webview
+            .set_position(position)
+            .map_err(|error| error.to_string())?;
+        webview.set_size(size).map_err(|error| error.to_string())?;
+        if has_query {
+            webview.navigate(url).map_err(|error| error.to_string())?;
+        }
+        webview.show().map_err(|error| error.to_string())?;
+        webview.set_focus().map_err(|error| error.to_string())?;
+        op.finish_ok_extra("existing=true");
+        return Ok(());
+    }
+
+    let window = app
+        .get_window("main")
+        .ok_or_else(|| "main_window_missing".to_string())?;
+    let builder = app
+        .state::<crate::core::webview::WebviewProxyConfig>()
+        .apply_webview(WebviewBuilder::new(
+            CHATGPT_SIDEBAR_WEBVIEW_LABEL,
+            WebviewUrl::External(url),
+        ))
+        // ChatGPT sign-in providers use window.open for OAuth. The default
+        // popup path uses the same WebView environment and has no Agentero
+        // capability. Restrict both paths to secure navigation.
+        .on_navigation(is_safe_chatgpt_navigation)
+        .on_new_window(|url, _features| {
+            if is_safe_chatgpt_navigation(&url) {
+                NewWindowResponse::Allow
+            } else {
+                NewWindowResponse::Deny
+            }
+        });
+    let webview = match window.add_child(builder, position, size) {
+        Ok(webview) => webview,
+        Err(error) => {
+            op.finish_err_msg("webview", &error);
+            return Err(error.to_string());
+        }
+    };
+    webview.show().map_err(|error| error.to_string())?;
+    webview.set_focus().map_err(|error| error.to_string())?;
+    op.finish_ok_extra("existing=false");
+    Ok(())
+}
+
+/// Hide the embedded ChatGPT WebView when the right rail is closed or another
+/// rail surface is active. The WebView and its page state remain mounted.
+#[tauri::command]
+#[specta::specta]
+pub fn chatgpt_sidebar_hide(app: AppHandle) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(CHATGPT_SIDEBAR_WEBVIEW_LABEL) {
+        webview.hide().map_err(|error| error.to_string())?;
+    }
+    Ok(())
+}
+
+/// Destroy the embedded ChatGPT WebView. Used only when the main page unloads.
+#[tauri::command]
+#[specta::specta]
+pub fn chatgpt_sidebar_close(app: AppHandle) -> Result<(), String> {
+    if let Some(webview) = app.get_webview(CHATGPT_SIDEBAR_WEBVIEW_LABEL) {
+        webview.close().map_err(|error| error.to_string())?;
+    }
     Ok(())
 }
 
@@ -215,12 +372,17 @@ pub async fn settings_window_open(
     }
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    let mut builder =
-        WebviewWindowBuilder::new(&app, SETTINGS_WINDOW_LABEL, WebviewUrl::App(url.into()))
-            .title("Settings")
-            .inner_size(880.0, 640.0)
-            .min_inner_size(760.0, 520.0)
-            .resizable(true);
+    let mut builder = app
+        .state::<crate::core::webview::WebviewProxyConfig>()
+        .apply(WebviewWindowBuilder::new(
+            &app,
+            SETTINGS_WINDOW_LABEL,
+            WebviewUrl::App(url.into()),
+        ))
+        .title("Settings")
+        .inner_size(880.0, 640.0)
+        .min_inner_size(760.0, 520.0)
+        .resizable(true);
 
     #[cfg(target_os = "macos")]
     {
@@ -343,7 +505,13 @@ pub async fn feature_window_open(
             });
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
+    let mut builder = app
+        .state::<crate::core::webview::WebviewProxyConfig>()
+        .apply(WebviewWindowBuilder::new(
+            &app,
+            &label,
+            WebviewUrl::App(url.into()),
+        ))
         .title(window_title)
         .inner_size(420.0, 720.0)
         .min_inner_size(320.0, 400.0)
@@ -424,7 +592,13 @@ pub async fn doc_window_open(
     });
 
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    let mut builder = WebviewWindowBuilder::new(&app, &label, WebviewUrl::App(url.into()))
+    let mut builder = app
+        .state::<crate::core::webview::WebviewProxyConfig>()
+        .apply(WebviewWindowBuilder::new(
+            &app,
+            &label,
+            WebviewUrl::App(url.into()),
+        ))
         .title(window_title)
         .inner_size(960.0, 720.0)
         .min_inner_size(480.0, 360.0)

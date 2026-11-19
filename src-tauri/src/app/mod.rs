@@ -41,6 +41,77 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 
+#[cfg(windows)]
+fn webview_proxy_url(settings_store: &AppSettingsStore) -> Option<tauri::Url> {
+    let (enabled, configured) = settings_store.network_proxy_config();
+    if !enabled {
+        // Let WebView2 use the Windows proxy configuration directly. Passing
+        // a single resolved URL here would discard PAC rules, per-protocol
+        // endpoints, and the system bypass list.
+        return None;
+    }
+    let proxy = configured;
+    let mut url = match tauri::Url::parse(&proxy) {
+        Ok(url) => url,
+        Err(_) => {
+            log::warn!(
+                target: "agentero::window",
+                "webview proxy ignored reason=invalid_url"
+            );
+            return None;
+        }
+    };
+    if url.scheme() == "socks5h" && url.set_scheme("socks5").is_err() {
+        log::warn!(
+            target: "agentero::window",
+            "webview proxy ignored reason=unsupported_scheme"
+        );
+        return None;
+    }
+    if !matches!(url.scheme(), "http" | "socks5") {
+        log::warn!(
+            target: "agentero::window",
+            "webview proxy ignored reason=unsupported_scheme"
+        );
+        return None;
+    }
+    if url.port().is_none() {
+        // tauri-runtime-wry constructs its WebView2 proxy endpoint from
+        // `Url::port()`. Default ports are normalized away by the URL parser,
+        // so accepting one here would produce a malformed `host:` value.
+        log::warn!(
+            target: "agentero::window",
+            "webview proxy ignored reason=missing_non_default_port"
+        );
+        return None;
+    }
+    Some(url)
+}
+
+fn migrate_legacy_agent_proxy(settings_store: &AppSettingsStore, agents: &AgentRegistry) {
+    if settings_store.network_proxy_config().0 {
+        return;
+    }
+    let Ok((enabled, url)) = agents.proxy_settings() else {
+        return;
+    };
+    if !enabled {
+        return;
+    }
+    let Ok(result) = settings_store.get() else {
+        return;
+    };
+    let mut settings = result.settings;
+    settings.network_proxy_enabled = true;
+    settings.network_proxy_url = url;
+    if let Err(error) = settings_store.set(settings) {
+        log::warn!(
+            target: "agentero::window",
+            "legacy agent proxy migration failed error={error}"
+        );
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // Both ring and aws-lc-rs backends exist in the dependency tree; rustls
@@ -132,12 +203,19 @@ pub fn run() {
     }
 
     let settings_store = AppSettingsStore::load();
+    let agent_registry = AgentRegistry::load();
+    migrate_legacy_agent_proxy(&settings_store, &agent_registry);
+    #[cfg(windows)]
+    let webview_proxy = webview_proxy_url(&settings_store);
+    #[cfg(not(windows))]
+    let webview_proxy = None;
+    let webview_proxy_config = crate::core::webview::WebviewProxyConfig::new(webview_proxy.clone());
     let layout_backend = settings_store.layout_backend();
     let import_concurrency = settings_store.batch_import_concurrency();
     let translate_concurrency = settings_store.auto_translate_import_concurrency();
     builder = builder
         .manage(settings_store)
-        .manage(AgentRegistry::load())
+        .manage(agent_registry)
         .manage(AgentRunController::new())
         .manage(std::sync::Arc::new(
             crate::features::agent::session::pool::AgentWarmPool::new(),
@@ -165,6 +243,7 @@ pub fn run() {
         .manage(crate::integration::sync::SyncService::default())
         .manage(crate::app::open_request::PendingVaultOpen::new())
         .manage(crate::app::open_request::PendingUiRequest::new())
+        .manage(webview_proxy_config)
         .manage(crate::features::web::html_preview::HtmlPreviewGrants::default());
 
     #[cfg(not(target_os = "ios"))]
@@ -254,26 +333,16 @@ pub fn run() {
         ));
         let settings_store = app.state::<AppSettingsStore>();
         let agents = app.state::<AgentRegistry>();
-        let mut settings = settings_store
+        let settings = settings_store
             .get()
             .map(|result| result.settings)
             .unwrap_or_default();
-        // Migrate the old Agent-only proxy once into the shared network setting.
-        if !settings.network_proxy_enabled {
-            if let Ok((enabled, url)) = agents.proxy_settings() {
-                if enabled {
-                    settings.network_proxy_enabled = true;
-                    settings.network_proxy_url = url;
-                    let _ = settings_store.set(settings.clone());
-                }
-            }
-        }
         // Settings-change reactions: domains subscribe at assembly time, so
         // the settings feature stays schema-agnostic with no edges into
         // agent/connector/import/jobs (P2-18 settings-layer refactor; mirrors
-        // the JobCenter runner-registry pattern). Registered after the
-        // one-shot proxy migration above so that migration `set` does not
-        // fire reactions this boot sequence applies manually below.
+        // the JobCenter runner-registry pattern). The legacy Agent proxy is
+        // migrated before Builder::build, so WebView creation and these
+        // reactions observe the same persisted value.
         {
             let handle = app.handle().clone();
             settings_store.subscribe(move |s| {
@@ -590,6 +659,16 @@ pub fn run() {
     #[cfg(target_os = "linux")]
     for window in &mut context.config_mut().app.windows {
         window.drag_drop_enabled = true;
+    }
+
+    // WebView2 configures its proxy as part of each environment creation.
+    // Apply the same value everywhere so Agentero and ChatGPT keep one
+    // persistent profile with matching environment options.
+    #[cfg(windows)]
+    if let Some(proxy_url) = webview_proxy {
+        for window in &mut context.config_mut().app.windows {
+            window.proxy_url = Some(proxy_url.clone());
+        }
     }
 
     builder

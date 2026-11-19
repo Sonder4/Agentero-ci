@@ -2,7 +2,7 @@
 	"$schema": "../gen/schemas/desktop-schema.json",
 	"identifier": "desktop",
 	"description": "Desktop-only capabilities: account session, in-app updater, and process relaunch",
-	"windows": ["main", "agentero-*", "settings"],
+	"webviews": ["main", "agentero-*", "settings"],
 	"platforms": ["macOS", "windows", "linux"],
 	"permissions": [
 		"updater:default",

@@ -7,6 +7,7 @@
 import { fileTreeHandle } from "@/components/shell/file-tree-registry";
 import { presentAgentComposer } from "@/lib/agent/composer-focus";
 import { pinActiveSelection } from "@/lib/agent/selection-store";
+import { openChatGptSidebar } from "@/lib/chatgpt/window";
 import { openMagicWand } from "@/lib/paper/import-actions";
 import { refreshLibrary } from "@/lib/paper/library-store";
 import {
@@ -50,6 +51,13 @@ import { resolveActivePdfHandle } from "@/lib/workspace/viewer/pdf-viewer-regist
 const hasVault = () => Boolean(getVaultPath());
 
 export const paletteCommands: AppCommand[] = [
+	{
+		id: "chatgpt.open",
+		titleKey: "commands.chatgptOpen",
+		categoryKey: "commands.catApp",
+		keywords: ["chatgpt", "openai", "chat"],
+		run: () => openChatGptSidebar(),
+	},
 	{
 		id: "plugins.loadDevelopment",
 		titleKey: "commands.pluginsLoadDevelopment",

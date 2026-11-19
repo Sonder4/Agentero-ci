@@ -45,7 +45,12 @@ pub async fn institution_proxy_login_open(app: AppHandle, prefix: String) -> Res
         window.navigate(login_url).map_err(|e| e.to_string())?;
         window.set_focus().map_err(|e| e.to_string())?;
     } else {
-        WebviewWindowBuilder::new(&app, PROXY_LOGIN_WINDOW, WebviewUrl::External(login_url))
+        app.state::<crate::core::webview::WebviewProxyConfig>()
+            .apply(WebviewWindowBuilder::new(
+                &app,
+                PROXY_LOGIN_WINDOW,
+                WebviewUrl::External(login_url),
+            ))
             .title(title)
             .inner_size(1000.0, 750.0)
             .build()

@@ -124,7 +124,7 @@ Host `notify` → `vault:file-changed`。打开的 `.md`/`NOTES.md` 磁盘变化
 
 ### 多窗口
 
-`⌘N` → Host `window_new`。Vault 按窗口 session 隔离，最近列表在 localStorage。设置窗口独立原生单例。同一 vault 可被多个窗口同时打开：Host 侧 `vault_hold` / `vault_release` 按窗口持有计数（`VaultHolders`），仅最后一个窗口离开（切库 / 关窗）时才执行 vault 全局释放；窗口销毁由 `on_window_event(Destroyed)` 兜底清理该窗口的持有。
+`⌘N` → Host `window_new`。Vault 按窗口 session 隔离，最近列表在 localStorage。设置窗口独立原生单例。ChatGPT Web 是主窗口右侧栏中的 `chatgpt-sidebar` 子 WebView，与主 WebView 共用持久 profile 和同一 WebView2 代理环境。前端只报告侧栏逻辑边界，Host 负责创建、定位、缩放和隐藏子 WebView；切换 Agent / ChatGPT 时子 WebView 保留页面状态。`chatgpt-sidebar` 不匹配 Tauri capability 的本地 WebView 列表，不持有 Vault。划词动作经 `?q=` 把提示词交给 ChatGPT 网页端；当前 Windows 实测复用会话时网页端会填入输入框，由用户发送，Agentero 同时复制同一提示词作为回退。同一 vault 可被多个窗口同时打开：Host 侧 `vault_hold` / `vault_release` 按窗口持有计数（`VaultHolders`），仅最后一个窗口离开（切库 / 关窗）时才执行 vault 全局释放；窗口销毁由 `on_window_event(Destroyed)` 兜底清理该窗口的持有。
 
 ### 配色主题
 

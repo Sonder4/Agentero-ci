@@ -693,6 +693,10 @@ export function PdfTranslationViewerInner({
 									onTranslate={selection.translateSelection}
 									onCopy={actions.handleMenuCopy}
 									onNote={selection.openNote}
+									source={{
+										sourcePath: paperRelPath || paperAbsPath || undefined,
+										page: selectionMenu.anchor.page,
+									}}
 									showHighlight={
 										!isRemotePaper && selectionMenu.pages.length > 0
 									}

@@ -632,6 +632,23 @@ export const commands = {
 	 */
 	windowNew: () => typedError<null, string>(__TAURI_INVOKE("window_new")),
 	/**
+	 *  Open, position, and focus the ChatGPT child WebView embedded in Agentero's
+	 *  right rail. The child reuses the main window's persistent WebView2
+	 *  environment and proxy snapshot. Its webview label is absent from Tauri
+	 *  capabilities, so the remote origin has no Agentero IPC, Vault, or document
+	 *  access. A query navigates the child through ChatGPT Web's `?q=` entry point.
+	 *  Keep this async: creating a child WebView inside a synchronous command can
+	 *  deadlock Windows WebView2 when called from another WebView's IPC callback.
+	 */
+	chatgptSidebarOpen: (query: string | null, bounds: ChatGptSidebarBounds) => typedError<null, string>(__TAURI_INVOKE("chatgpt_sidebar_open", { query, bounds })),
+	/**
+	 *  Hide the embedded ChatGPT WebView when the right rail is closed or another
+	 *  rail surface is active. The WebView and its page state remain mounted.
+	 */
+	chatgptSidebarHide: () => typedError<null, string>(__TAURI_INVOKE("chatgpt_sidebar_hide")),
+	/**  Destroy the embedded ChatGPT WebView. Used only when the main page unloads. */
+	chatgptSidebarClose: () => typedError<null, string>(__TAURI_INVOKE("chatgpt_sidebar_close")),
+	/**
 	 *  Open a singleton native Settings window, or focus it if already open.
 	 * 
 	 *  See [`window_new`] for why this must stay `async`.
@@ -2431,6 +2448,13 @@ export type CatalogUpdatePropertyArgs_Deserialize = {
 export type CatalogUpdatePropertyArgs_Serialize = {
 	vaultPath: string,
 	property: CustomProperty_Serialize,
+};
+
+export type ChatGptSidebarBounds = {
+	x: number | null,
+	y: number | null,
+	width: number | null,
+	height: number | null,
 };
 
 export type ChatImportExtractArgs = {

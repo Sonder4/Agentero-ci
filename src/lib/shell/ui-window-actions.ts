@@ -6,9 +6,9 @@
  */
 
 import {
+	type FeatureViewType,
 	layout,
 	openRightTabInRail,
-	type RightSidebarTab,
 	setLayoutMode,
 	uiStore,
 } from "@/lib/shell/ui-store";
@@ -20,6 +20,10 @@ export function toggleChat(): void {
 	const { rightSidebarOpen, rightSidebarTab } = uiStore.getState();
 	if (rightSidebarOpen) {
 		layout()?.setRightCollapsed(true);
+		return;
+	}
+	if (rightSidebarTab === "chatgpt") {
+		openRightTabInRail("chatgpt");
 		return;
 	}
 	void import("@/lib/shell/feature-window").then(
@@ -37,7 +41,7 @@ export function toggleChat(): void {
  * window and do not host a second copy in the main right rail (same policy for
  * Agent and Annotations).
  */
-export function openRightTab(tab: RightSidebarTab): void {
+export function openRightTab(tab: FeatureViewType): void {
 	setLayoutMode("custom");
 	void import("@/lib/shell/feature-window").then(
 		async ({ preferFeatureWindow }) => {

@@ -293,6 +293,8 @@
 		"bookmark": "书签",
 		"moreActions": "更多操作",
 		"quickChat": "快速对话",
+		"openInChatGpt": "在 ChatGPT 中提问",
+		"chatGptClipboardUnavailable": "ChatGPT 已打开，但无法复制选区作为回退内容。",
 		"addToChat": "加入对话",
 		"translate": "翻译",
 		"removeHighlight": "删除标注",

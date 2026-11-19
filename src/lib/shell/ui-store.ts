@@ -18,9 +18,9 @@ import {
 	layoutModeRightCollapsed,
 } from "@/lib/shell/layout-presets";
 
-export type RightSidebarTab = "agent" | "annotations";
+export type RightSidebarTab = "agent" | "annotations" | "chatgpt";
 /** Views that may live in a singleton native feature window (right-rail popouts). */
-export type FeatureViewType = RightSidebarTab;
+export type FeatureViewType = "agent" | "annotations";
 /** Layout presets plus the free-form arrangement after any manual change. */
 export type LayoutMode = LayoutPresetMode | "custom";
 
@@ -51,6 +51,8 @@ type UiStore = {
 	rightSidebarTab: RightSidebarTab;
 	/** Keep AgentPanel mounted when switching right-rail tabs. */
 	agentPanelMounted: boolean;
+	/** Keep the embedded ChatGPT WebView mounted while another rail tab is active. */
+	chatgptPanelMounted: boolean;
 	/**
 	 * Feature views currently living in a singleton native window.
 	 * Main window uses this to focus the popout instead of only expanding the rail.
@@ -84,6 +86,7 @@ export const uiStore = createStore<UiStore>(() => ({
 	rightSidebarOpen: false,
 	rightSidebarTab: "agent",
 	agentPanelMounted: false,
+	chatgptPanelMounted: false,
 	featurePoppedOut: {},
 	lookupOpenSignal: 0,
 	zoteroOpen: false,
@@ -187,6 +190,10 @@ export function setRightSidebarTab(tab: RightSidebarTab): void {
 
 export function setAgentPanelMounted(mounted: boolean): void {
 	uiStore.setState({ agentPanelMounted: mounted });
+}
+
+export function setChatGptPanelMounted(mounted: boolean): void {
+	uiStore.setState({ chatgptPanelMounted: mounted });
 }
 
 export function bumpLookupOpenSignal(): void {
@@ -311,6 +318,7 @@ export function toggleSidebar(): void {
 export function openRightTabInRail(tab: RightSidebarTab): void {
 	setRightSidebarTab(tab);
 	if (tab === "agent") setAgentPanelMounted(true);
+	if (tab === "chatgpt") setChatGptPanelMounted(true);
 	if (!uiStore.getState().rightSidebarOpen) {
 		layout()?.setRightCollapsed(false, { focusAgent: tab === "agent" });
 	}

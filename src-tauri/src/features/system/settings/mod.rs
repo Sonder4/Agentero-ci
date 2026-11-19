@@ -885,6 +885,20 @@ impl AppSettingsStore {
         Ok(redacted)
     }
 
+    /// Raw network-proxy configuration for process bootstrap paths that run
+    /// before the redacted settings snapshot is exposed to the WebView.
+    pub fn network_proxy_config(&self) -> (bool, String) {
+        self.inner
+            .lock()
+            .map(|settings| {
+                (
+                    settings.network_proxy_enabled,
+                    settings.network_proxy_url.clone(),
+                )
+            })
+            .unwrap_or_else(|_| (false, default_network_proxy_url()))
+    }
+
     /// Resolve a commercial MT API key by provider id (case-insensitive).
     /// Used by `translate_text` so the WebView never needs the plaintext key.
     pub fn translate_api_key(&self, provider: &str) -> Option<String> {

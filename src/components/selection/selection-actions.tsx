@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useStore } from "zustand";
+import { ChatGPTIcon } from "@/components/agent/open-in-chat";
 import { AskPopover } from "@/components/viewer/pdf/cards/ask-popover";
 import { TranslateCard } from "@/components/viewer/pdf/cards/translate-card";
 import { textAskContextRequest } from "@/lib/agent/context-request";
@@ -15,6 +16,10 @@ import { selectionAnnotationBody } from "@/lib/agent/selection-prompt";
 import { registerSelectionAddToChat } from "@/lib/agent/selection-quick-chat";
 import { isVaultSelection } from "@/lib/agent/selection-source-kind";
 import type { SelectionContext } from "@/lib/agent/selection-store";
+import {
+	chatGptPromptForSelection,
+	openChatGptSidebar,
+} from "@/lib/chatgpt/window";
 import { copyTextToClipboard } from "@/lib/core/clipboard";
 import { openSettingsWindow } from "@/lib/shell/settings-window";
 import {
@@ -37,6 +42,7 @@ export function SelectionActions({
 }: {
 	draft: SelectionChatDraft | null;
 }) {
+	const { t } = useTranslation("viewer");
 	const { t: texLabel } = useTranslation("latexLanguage");
 	const menu = draft;
 	const menuRef = useRef(menu);
@@ -121,6 +127,12 @@ export function SelectionActions({
 		dismissSelectionChat();
 		return true;
 	}, []);
+	const openMenuSelectionInChatGpt = useCallback(() => {
+		const current = menuRef.current;
+		if (!current) return;
+		void openChatGptSidebar(chatGptPromptForSelection(current.selection));
+		dismissSelectionChat();
+	}, []);
 	// An embedded frame's Escape cannot reach this window's keydown listeners.
 	useEffect(() => {
 		const dismiss = () => {
@@ -160,6 +172,14 @@ export function SelectionActions({
 						) : null
 					}
 					onCopy={() => copyTextToClipboard(menu.selection.text)}
+					moreActions={[
+						{
+							id: "chatgpt",
+							label: t("selection.openInChatGpt"),
+							icon: <ChatGPTIcon className="size-3.5" />,
+							onSelect: openMenuSelectionInChatGpt,
+						},
+					]}
 					onTranslate={() => {
 						translation.translate(menu.selection, menu.screen);
 						dismissSelectionChat();

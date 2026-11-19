@@ -5,6 +5,7 @@
 
 import { lazy, Suspense, useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { ChatGptSidebarPanel } from "@/components/chatgpt/chatgpt-sidebar-panel";
 import {
 	useLibraryStore,
 	useSettings,
@@ -14,7 +15,7 @@ import {
 } from "@/hooks/use-app-stores";
 import { cn } from "@/lib/core/utils";
 import { openSettingsWindow } from "@/lib/shell/settings-window";
-import { setRightSidebarTab } from "@/lib/shell/ui-store";
+import { setAgentPanelMounted, setRightSidebarTab } from "@/lib/shell/ui-store";
 import { openCitation } from "@/lib/workspace/actions";
 
 // The Agent panel is lazy-loaded: it isn't mounted until the agent sidebar is
@@ -38,6 +39,7 @@ export function RightSidebar() {
 	const rightSidebarOpen = useUiStore((s) => s.rightSidebarOpen);
 	const rightSidebarTab = useUiStore((s) => s.rightSidebarTab);
 	const agentPanelMounted = useUiStore((s) => s.agentPanelMounted);
+	const chatgptPanelMounted = useUiStore((s) => s.chatgptPanelMounted);
 	const featurePoppedOut = useUiStore((s) => s.featurePoppedOut);
 	const vaultPath = useVaultStore((s) => s.vaultPath);
 	const vaultMdFiles = useVaultStore((s) => s.vaultMdFiles);
@@ -98,6 +100,22 @@ export function RightSidebar() {
 						</Suspense>
 					</div>
 				)}
+			{chatgptPanelMounted && (
+				<div
+					className={cn(
+						"h-full min-h-0",
+						(!rightSidebarOpen || rightSidebarTab !== "chatgpt") && "hidden",
+					)}
+				>
+					<ChatGptSidebarPanel
+						active={rightSidebarOpen && rightSidebarTab === "chatgpt"}
+						onOpenAgent={() => {
+							setRightSidebarTab("agent");
+							setAgentPanelMounted(true);
+						}}
+					/>
+				</div>
+			)}
 		</>
 	);
 }

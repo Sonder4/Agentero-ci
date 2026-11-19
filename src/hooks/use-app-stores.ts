@@ -6,6 +6,7 @@
 import { useStore } from "zustand";
 import { selectionStore } from "@/lib/agent/selection-store";
 import { visualContextStore } from "@/lib/agent/visual-context-store";
+import { chatGptSidebarStore } from "@/lib/chatgpt/store";
 import { libraryStore } from "@/lib/paper/library-store";
 import { settingsStore } from "@/lib/settings/react-store";
 import { uiStore } from "@/lib/shell/ui-store";
@@ -50,6 +51,12 @@ export function useSelectionStore<T>(
 	selector: (state: ExtractState<typeof selectionStore>) => T,
 ): T {
 	return useStore(selectionStore, selector);
+}
+
+export function useChatGptSidebarStore<T>(
+	selector: (state: ExtractState<typeof chatGptSidebarStore>) => T,
+): T {
+	return useStore(chatGptSidebarStore, selector);
 }
 
 export function useVisualContextStore<T>(

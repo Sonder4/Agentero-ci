@@ -2,6 +2,7 @@ import { PanelLeft, Settings } from "lucide-react";
 import { memo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AgentLogo } from "@/components/agent/agent-logo";
+import { ChatGPTIcon } from "@/components/agent/open-in-chat";
 import { LayoutMenu } from "@/components/shell/layout-menu";
 import { TrafficLightSpacer } from "@/components/shell/traffic-light-spacer";
 import { UpdateIndicator } from "@/components/shell/update-indicator";
@@ -22,6 +23,7 @@ import {
 } from "@/components/ui/tooltip";
 import { useShortcutLabel } from "@/hooks/use-shortcut-label";
 import { useAgentChromeStore } from "@/lib/agent/agent-chrome-store";
+import { openChatGptSidebar } from "@/lib/chatgpt/window";
 import { cn } from "@/lib/core/utils";
 import { moveFeatureToWindow } from "@/lib/shell/leaf";
 import { openSettingsWindow } from "@/lib/shell/settings-window";
@@ -203,6 +205,14 @@ export const TitleBar = memo(function TitleBar({
 								}
 							}}
 						>
+							<DropdownMenuItem
+								onSelect={() => {
+									void openChatGptSidebar();
+								}}
+							>
+								<ChatGPTIcon className="size-3.5" />
+								{t("tabs.contextOpenChatGpt")}
+							</DropdownMenuItem>
 							<DropdownMenuItem
 								onSelect={() => {
 									void moveFeatureToWindow("agent");

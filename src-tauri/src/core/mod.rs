@@ -20,6 +20,7 @@ pub mod app_handle;
 ))]
 pub mod telemetry;
 pub mod usage;
+pub mod webview;
 
 pub use agentero_core::blocking;
 pub use agentero_core::cancel;

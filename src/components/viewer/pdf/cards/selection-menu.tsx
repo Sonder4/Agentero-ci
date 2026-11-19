@@ -1,8 +1,10 @@
 import { Bookmark, MessageSquare } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { ChatGPTIcon } from "@/components/agent/open-in-chat";
 import {
 	SelectionActionMenu,
+	type SelectionMenuMoreAction,
 	type SelectionMenuShortcut,
 } from "@/components/selection/selection-action-menu";
 import {
@@ -11,6 +13,11 @@ import {
 	SelectionToolbarIconButton,
 } from "@/components/selection/selection-toolbar";
 import type { ScreenPoint } from "@/components/viewer/pdf/types";
+import {
+	type ChatGptSelectionSource,
+	chatGptPromptForText,
+	openChatGptSidebar,
+} from "@/lib/chatgpt/window";
 import {
 	type MarkupShapes,
 	oppositeTextMarkupKind,
@@ -48,6 +55,7 @@ type SelectionMenuProps = {
 	showHighlight?: boolean;
 	showTranslate?: boolean;
 	contributionContext?: MenuContext;
+	source?: ChatGptSelectionSource;
 };
 
 /** PDF-only extensions composed into the application selection menu. */
@@ -64,6 +72,7 @@ export function SelectionMenu({
 	showHighlight = true,
 	showTranslate = true,
 	contributionContext,
+	source,
 }: SelectionMenuProps) {
 	const { t } = useTranslation("viewer");
 	const dividerRef = useRef<HTMLDivElement>(null);
@@ -117,6 +126,26 @@ export function SelectionMenu({
 		? visibleMenuContributions("pdf.selection", contributionContext)
 		: [];
 	const showPalette = showHighlight && Boolean(onHighlight);
+	const moreActions: SelectionMenuMoreAction[] = [];
+	if (onBookmark) {
+		moreActions.push({
+			id: "bookmark",
+			label: t("selection.bookmark"),
+			icon: <Bookmark className="size-3.5" />,
+			shortcut: "B",
+			onSelect: onBookmark,
+		});
+	}
+	if (selectionText?.trim()) {
+		moreActions.push({
+			id: "chatgpt",
+			label: t("selection.openInChatGpt"),
+			icon: <ChatGPTIcon className="size-3.5" />,
+			onSelect: () => {
+				void openChatGptSidebar(chatGptPromptForText(selectionText, source));
+			},
+		});
+	}
 	return (
 		<SelectionActionMenu
 			screen={screen}
@@ -160,19 +189,7 @@ export function SelectionMenu({
 					</>
 				) : undefined
 			}
-			moreActions={
-				onBookmark
-					? [
-							{
-								id: "bookmark",
-								label: t("selection.bookmark"),
-								icon: <Bookmark className="size-3.5" />,
-								shortcut: "B",
-								onSelect: onBookmark,
-							},
-						]
-					: undefined
-			}
+			moreActions={moreActions.length > 0 ? moreActions : undefined}
 			afterActions={
 				contributions.length > 0 ? (
 					<>
