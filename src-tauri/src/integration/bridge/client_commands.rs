@@ -24,7 +24,6 @@ pub fn bridge_connect(
 }
 
 #[tauri::command]
-#[cfg(target_os = "ios")]
 pub fn bridge_resume(
     app: AppHandle,
     controller: State<'_, BridgeClientController>,
@@ -43,7 +42,6 @@ pub fn bridge_disconnect(controller: State<'_, BridgeClientController>) -> ApiRe
     }
 }
 
-#[cfg(target_os = "ios")]
 #[tauri::command]
 pub fn bridge_status(
     controller: State<'_, BridgeClientController>,

@@ -179,13 +179,30 @@ pub fn attach_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<ta
     #[cfg(not(target_os = "ios"))]
     {
         builder.invoke_handler(common_commands![
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_start,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_stop,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_status,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_offer,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_pair_respond,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_devices,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_revoke_device,
+            #[cfg(target_os = "android")]
+            crate::integration::bridge::client_commands::bridge_connect,
+            #[cfg(target_os = "android")]
+            crate::integration::bridge::client_commands::bridge_resume,
+            #[cfg(target_os = "android")]
+            crate::integration::bridge::client_commands::bridge_disconnect,
+            #[cfg(target_os = "android")]
+            crate::integration::bridge::client_commands::bridge_status,
+            #[cfg(target_os = "android")]
+            crate::integration::bridge::client_commands::bridge_rpc,
             crate::features::zhihu::commands::zhihu_probe,
             crate::features::zhihu::commands::zhihu_search,
             crate::features::zhihu::commands::zhihu_question_draft,

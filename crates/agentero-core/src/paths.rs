@@ -20,11 +20,11 @@ pub fn xdg_config_home() -> PathBuf {
     if let Some(p) = env_dir("XDG_CONFIG_HOME") {
         return p;
     }
-    #[cfg(any(windows, target_os = "ios"))]
+    #[cfg(any(windows, target_os = "ios", target_os = "android"))]
     {
         dirs::config_dir().unwrap_or_else(|| PathBuf::from("."))
     }
-    #[cfg(not(any(windows, target_os = "ios")))]
+    #[cfg(not(any(windows, target_os = "ios", target_os = "android")))]
     {
         home_dir().join(".config")
     }
@@ -35,11 +35,11 @@ pub fn xdg_cache_home() -> PathBuf {
     if let Some(p) = env_dir("XDG_CACHE_HOME") {
         return p;
     }
-    #[cfg(any(windows, target_os = "ios"))]
+    #[cfg(any(windows, target_os = "ios", target_os = "android"))]
     {
         dirs::cache_dir().unwrap_or_else(|| PathBuf::from("."))
     }
-    #[cfg(not(any(windows, target_os = "ios")))]
+    #[cfg(not(any(windows, target_os = "ios", target_os = "android")))]
     {
         home_dir().join(".cache")
     }
@@ -55,11 +55,11 @@ pub fn xdg_data_home() -> PathBuf {
     if let Some(p) = env_dir("XDG_DATA_HOME") {
         return p;
     }
-    #[cfg(any(windows, target_os = "ios"))]
+    #[cfg(any(windows, target_os = "ios", target_os = "android"))]
     {
         dirs::data_dir().unwrap_or_else(|| PathBuf::from("."))
     }
-    #[cfg(not(any(windows, target_os = "ios")))]
+    #[cfg(not(any(windows, target_os = "ios", target_os = "android")))]
     {
         home_dir().join(".local").join("share")
     }
@@ -202,7 +202,7 @@ fn env_dir(key: &str) -> Option<PathBuf> {
 /// Fallback home directory for XDG defaults. Only used where the `~/.config`
 /// convention applies (not Windows/iOS), hence the cfg gate to avoid a
 /// dead-code warning on those builds.
-#[cfg(not(any(windows, target_os = "ios")))]
+#[cfg(not(any(windows, target_os = "ios", target_os = "android")))]
 fn home_dir() -> PathBuf {
     dirs::home_dir().unwrap_or_else(|| PathBuf::from("."))
 }

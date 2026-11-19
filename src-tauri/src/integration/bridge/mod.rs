@@ -5,7 +5,9 @@
 //! execution are layered on top in sibling modules.
 
 mod client;
+#[cfg(any(target_os = "ios", target_os = "android"))]
 pub mod client_commands;
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 pub mod commands;
 mod crypto;
 mod host;

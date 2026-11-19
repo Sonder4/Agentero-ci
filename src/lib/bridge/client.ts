@@ -4,7 +4,7 @@ import type { ApiResult } from "@/lib/core/bindings";
 import { isTauri } from "@/lib/core/tauri";
 
 /**
- * iOS bridge **client** commands (`client_commands.rs`) are mobile-gated and
+ * Mobile bridge **client** commands (`client_commands.rs`) are mobile-gated and
  * not part of the desktop specta bindings, so this file keeps the string
  * invoke path with the same `ApiResult` envelope semantics as the typed
  * helpers in `@/lib/core/ipc`.
