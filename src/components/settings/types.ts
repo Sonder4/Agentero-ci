@@ -1,4 +1,5 @@
 export type SettingsSection =
+	| "plugins"
 	| "general"
 	| "activity"
 	| "appearance"

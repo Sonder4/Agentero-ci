@@ -180,6 +180,25 @@ pub fn attach_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<ta
     {
         builder.invoke_handler(common_commands![
             #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_editor_state,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_list,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_inspect,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_install,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_configure,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_remove,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_activate,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_dev_load,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_unload,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
+            crate::integration::plugins::plugin_run,
             crate::integration::bridge::commands::bridge_start,
             #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_stop,

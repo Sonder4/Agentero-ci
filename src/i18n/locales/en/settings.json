@@ -19,7 +19,8 @@
 		"about": "About",
 		"quickSetup": "Quick setup wizard",
 		"featureTour": "Feature tour",
-		"sync": "Sync"
+		"sync": "Sync",
+		"plugins": "Plugins"
 	},
 	"activity": {
 		"title": "Activity",
@@ -1211,6 +1212,23 @@
 		"unlimited": "Unlimited",
 		"signInRequired": "Sign in to see your cloud sync capacity.",
 		"notIncluded": "The current plan does not include cloud sync."
+	},
+	"plugins": {
+		"install": "Install from folder…",
+		"localOnly": "Open a local Vault to manage plugins.",
+		"empty": "No plugins installed.",
+		"failed": "Plugin operation failed",
+		"configure": "Configure {{name}}",
+		"remove": "Uninstall {{name}}",
+		"enable": "Enable {{name}}",
+		"saveEnable": "Save and enable",
+		"permissions": {
+			"vault:read": "Read Vault files and papers",
+			"catalog:write": "Change paper tags and read status",
+			"vault:notes:write": "Write paper notes",
+			"vault:write": "Write Vault text and move papers"
+		},
+		"cancel": "Cancel"
 	},
 	"word": {
 		"damagedField": "This citation has an empty or damaged field result. Restore the document or reinsert the citation in a copy.",

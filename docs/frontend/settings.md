@@ -138,4 +138,4 @@
 
 本定制构建已移除官方账户页与 tauri-plugin-better-auth Host 插件：设置侧栏不再有「账户」分区，Vault 欢迎页也不再显示账户入口。账号相关的云端写作与托管能力随账户界面一起下线，本地 Vault、Agent、翻译与同步（S3/WebDAV/Git）不受影响。
 
-src/features/account/visibility.ts 的 accountSurfaceEnabled 固定为 false，因此账户分区与欢迎页入口始终不渲染。
+src/features/account/visibility.ts 的 accountSurfaceEnabled 固定为 false，因此账户分区与欢迎页入口始终不渲染；插件入口由 pluginsSurfaceEnabled 控制（默认开启，开发插件入口只在显式开启时出现）。
