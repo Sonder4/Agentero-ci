@@ -66,8 +66,7 @@ impl SyncService {
     /// vault so a slow network can hold up quit for at most a few seconds.
     /// Shares the same lease as manual/automatic passes. Skip a busy vault
     /// rather than race its local base/state files during shutdown.
-    pub fn flush_on_exit(&self, app: &AppHandle) {
-        let token = tauri::async_runtime::block_on(super::commands::session_bearer(app));
+    pub fn flush_on_exit(&self, _app: &AppHandle) {
         for key in config::list_all().into_keys() {
             let dir = PathBuf::from(&key);
             if !dir.is_dir() {
@@ -76,7 +75,7 @@ impl SyncService {
             let Ok(lock) = agentero_core::features::sync::lock::SyncLock::acquire(&dir) else {
                 continue;
             };
-            let Some(mut cfg) = config::get(&key) else {
+            let Some(cfg) = config::get(&key) else {
                 continue;
             };
             if !cfg.auto_sync {
@@ -91,14 +90,6 @@ impl SyncService {
                     "exit flush {key}: git backend skipped (next pass will push)"
                 );
                 continue;
-            }
-            if cfg.backend == config::SyncBackendKind::Agentero {
-                if cfg.agentero_api.trim().is_empty() {
-                    cfg.agentero_api = super::commands::account_api_origin();
-                }
-                if let Some(token) = token.clone() {
-                    cfg.agentero_token = token;
-                }
             }
             let Some(_lease) = self.try_begin(&key) else {
                 log::info!(target: "agentero::sync", "exit flush {key}: sync already running; skipped");

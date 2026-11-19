@@ -12,7 +12,6 @@ import {
 	SlidersHorizontal,
 	Smartphone,
 	Stethoscope,
-	UserRound,
 	Wand2,
 	X,
 } from "lucide-react";
@@ -35,7 +34,6 @@ import type {
 	SettingsSection,
 } from "@/components/settings/types";
 import { Button } from "@/components/ui/button";
-import { accountSurfaceEnabled } from "@/features/account/visibility";
 import { scrollBehavior } from "@/lib/core/motion";
 import { cn } from "@/lib/core/utils";
 import {
@@ -56,7 +54,6 @@ import {
 // the shell (see `preloadSettingsPane`), so only the sections you actually visit
 // pay for a chunk — a lazy default pane would just move the stall after render.
 const PANE_LOADERS = {
-	account: () => import("@/components/settings/panes/account-pane"),
 	general: () => import("@/components/settings/panes/general-pane"),
 	activity: () => import("@/components/settings/panes/activity-pane"),
 	appearance: () => import("@/components/settings/panes/appearance-pane"),
@@ -76,8 +73,7 @@ const PANE_LOADERS = {
  * Warm the chunk for `section` before the shell renders. Module promises are
  * cached, so the matching `lazy()` below resolves without a second request.
  */
-function sectionVisible(id: SettingsSection): boolean {
-	if (!accountSurfaceEnabled && id === "account") return false;
+function sectionVisible(_id: SettingsSection): boolean {
 	return true;
 }
 
@@ -92,9 +88,6 @@ export function preloadSettingsPane(section: string): Promise<unknown> {
 
 // memo(): visited panes stay mounted across section switches; without this
 // every switch re-rendered ALL mounted panes (agent pane is ~1.5k lines).
-const AccountPane = memo(
-	lazy(() => PANE_LOADERS.account().then((m) => ({ default: m.AccountPane }))),
-);
 const GeneralPane = memo(
 	lazy(() => PANE_LOADERS.general().then((m) => ({ default: m.GeneralPane }))),
 );
@@ -158,7 +151,6 @@ const NAV: {
 	icon: typeof Bot;
 	dividerBefore?: boolean;
 }[] = [
-	{ id: "account", icon: UserRound },
 	{ id: "general", icon: SlidersHorizontal },
 	{ id: "appearance", icon: Paintbrush },
 	{ id: "activity", icon: ChartColumn },
@@ -662,17 +654,6 @@ export function SettingsContent({
 						>
 							<Suspense fallback={<PaneFallback />}>
 								<ExperimentalPane settings={settings} patch={patch} />
-							</Suspense>
-						</div>
-					)}
-					{visitedSections.includes("account") && (
-						<div
-							data-settings-pane
-							data-active={activeSection === "account" ? "true" : "false"}
-							hidden={activeSection !== "account"}
-						>
-							<Suspense fallback={<PaneFallback />}>
-								<AccountPane />
 							</Suspense>
 						</div>
 					)}

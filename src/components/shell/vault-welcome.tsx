@@ -1,10 +1,4 @@
-import {
-	FolderOpen,
-	FolderPlus,
-	Server,
-	Trash2,
-	UserRound,
-} from "lucide-react";
+import { FolderOpen, FolderPlus, Server, Trash2 } from "lucide-react";
 import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { SiZotero } from "react-icons/si";
@@ -13,10 +7,8 @@ import {
 	RemoteVaultDialog,
 } from "@/components/dialogs/remote-vault-dialog";
 import { Button } from "@/components/ui/button";
-import { accountSurfaceEnabled } from "@/features/account/visibility";
 import { displayPath } from "@/lib/core/path";
 import { cn } from "@/lib/core/utils";
-import { openSettingsWindow } from "@/lib/shell/settings-window";
 import { vaultDisplayName } from "@/lib/vault";
 import {
 	getRecentRemoteVaults,
@@ -127,16 +119,6 @@ export function VaultWelcome({
 			)}
 		>
 			<div className="flex w-full max-w-lg flex-col gap-6">
-				{accountSurfaceEnabled ? (
-					<Button
-						variant="ghost"
-						className="self-center"
-						onClick={() => openSettingsWindow("account")}
-					>
-						<UserRound className="size-4" />
-						{t("settings:nav.account")}
-					</Button>
-				) : null}
 				<div className="mx-auto flex size-12 items-center justify-center rounded-xl border bg-background shadow-raised">
 					<FolderOpen className="size-6 text-muted-foreground" />
 				</div>

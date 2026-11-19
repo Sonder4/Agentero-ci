@@ -160,7 +160,6 @@ const GIT_PROVIDER_LINKS: SyncProviderLink[] = [
 ];
 
 const BACKEND_OPTIONS = [
-	{ value: "agentero", labelKey: "sync.backendAgentero" },
 	{ value: "s3", labelKey: "sync.backendS3" },
 	{ value: "webdav", labelKey: "sync.backendWebdav" },
 	{ value: "git", labelKey: "sync.backendGit" },

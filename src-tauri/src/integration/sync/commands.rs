@@ -56,44 +56,6 @@ struct SyncProgressEvent<'a> {
     total: usize,
 }
 
-pub fn account_api_origin() -> String {
-    let local = cfg!(debug_assertions) && option_env!("AGENTERO_LOCAL_AUTH") == Some("1");
-    if local {
-        "http://localhost:8788".into()
-    } else {
-        "https://api.agentero.app".into()
-    }
-}
-
-pub async fn session_bearer(app: &AppHandle) -> Option<String> {
-    #[cfg(not(any(target_os = "android", target_os = "ios")))]
-    {
-        use tauri_plugin_better_auth::BetterAuthExt;
-        return app
-            .better_auth()
-            .bearer_token()
-            .await
-            .filter(|token| !token.trim().is_empty());
-    }
-    #[cfg(any(target_os = "android", target_os = "ios"))]
-    {
-        let _ = app;
-        None
-    }
-}
-
-async fn attach_agentero_session(app: &AppHandle, cfg: &mut SyncBackendConfig) {
-    if cfg.backend != super::config::SyncBackendKind::Agentero {
-        return;
-    }
-    if cfg.agentero_api.trim().is_empty() {
-        cfg.agentero_api = account_api_origin();
-    }
-    if let Some(token) = session_bearer(app).await {
-        cfg.agentero_token = token;
-    }
-}
-
 fn vault_dir(vault_path: &str) -> Result<PathBuf, AppError> {
     let trimmed = vault_path.trim();
     if trimmed.is_empty() || trimmed.starts_with("remote:") {
@@ -141,7 +103,6 @@ pub async fn sync_configure(
         let _lock = SyncLock::acquire(&dir)?;
         let mut cfg = args.config.normalized();
         cfg.merge_mask(config::get(&key).as_ref());
-        attach_agentero_session(&app, &mut cfg).await;
         cfg.validate()?;
         cfg.conditional_writes = engine::test_connection(&dir, &cfg).await?;
         let meta = local::read_meta(&dir)?;
@@ -212,9 +173,7 @@ pub async fn perform_sync(
 ) -> Result<SyncOutcome, AppError> {
     let dir = vault_dir(vault_key)?;
     let lock = SyncLock::acquire(&dir)?;
-    let mut cfg =
-        config::get(vault_key).ok_or_else(|| AppError::message("sync is not configured"))?;
-    attach_agentero_session(app, &mut cfg).await;
+    let cfg = config::get(vault_key).ok_or_else(|| AppError::message("sync is not configured"))?;
     let lease = service
         .try_begin(vault_key)
         .ok_or_else(|| AppError::message("sync already running"))?;
@@ -311,75 +270,10 @@ fn signed_out_usage() -> SyncCloudUsage {
 #[tauri::command]
 #[specta::specta]
 pub async fn sync_cloud_usage(
-    app: AppHandle,
-    args: SyncCloudUsageArgs,
+    _app: AppHandle,
+    _args: SyncCloudUsageArgs,
 ) -> Result<ApiResult<SyncCloudUsage>, String> {
-    let Some(token) = session_bearer(&app).await else {
-        return Ok(ApiResult::ok(signed_out_usage()));
-    };
-    let subject = if args.subject == "organization" {
-        "organization"
-    } else {
-        "user"
-    };
-    if subject == "organization" && args.org_id.as_deref().unwrap_or("").trim().is_empty() {
-        return Ok(ApiResult::ok(SyncCloudUsage {
-            signed_in: true,
-            ..signed_out_usage()
-        }));
-    }
-    let mut url = format!("{}/api/sync/usage?subject={subject}", account_api_origin());
-    if subject == "organization" {
-        let id = args.org_id.unwrap_or_default();
-        url.push_str("&id=");
-        for byte in id.bytes() {
-            match byte {
-                b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                    url.push(byte as char);
-                }
-                _ => url.push_str(&format!("%{byte:02X}")),
-            }
-        }
-    }
-    let client = match crate::core::http::client_builder().build() {
-        Ok(client) => client,
-        Err(e) => return Ok(map_err(AppError::message(e.to_string()))),
-    };
-    let response = match client.get(url).bearer_auth(token).send().await {
-        Ok(response) => response,
-        Err(e) => return Ok(map_err(AppError::message(e.to_string()))),
-    };
-    if response.status().as_u16() == 401 {
-        return Ok(ApiResult::ok(signed_out_usage()));
-    }
-    if !response.status().is_success() {
-        let status = response.status();
-        let body = response.text().await.unwrap_or_default();
-        return Ok(map_err(AppError::message(format!(
-            "cloud usage: {status} {}",
-            body.chars().take(180).collect::<String>()
-        ))));
-    }
-    let payload: serde_json::Value = match response.json().await {
-        Ok(payload) => payload,
-        Err(e) => return Ok(map_err(AppError::message(format!("cloud usage: {e}")))),
-    };
-    let data = payload.get("data").cloned().unwrap_or(payload);
-    Ok(ApiResult::ok(SyncCloudUsage {
-        signed_in: true,
-        used: data.get("used").and_then(|v| v.as_u64()).unwrap_or(0),
-        limit: data.get("limit").and_then(|v| v.as_i64()).unwrap_or(0),
-        tier: data
-            .get("tier")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string(),
-        plan_key: data
-            .get("planKey")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string(),
-    }))
+    Ok(ApiResult::ok(signed_out_usage()))
 }
 
 fn emit_state(app: &AppHandle, vault_path: &str, status: &str, error: Option<String>) {

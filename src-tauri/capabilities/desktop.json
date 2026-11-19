@@ -5,7 +5,6 @@
 	"windows": ["main", "agentero-*", "settings"],
 	"platforms": ["macOS", "windows", "linux"],
 	"permissions": [
-		"better-auth:default",
 		"updater:default",
 		"process:default",
 		"window-state:default"
