@@ -1283,11 +1283,8 @@ mod tests {
 
     #[test]
     fn relay_offer_keeps_the_explicit_secure_port() {
-        let endpoint = RelayEndpoint::parse("relay.agentero.app:443").expect("parse endpoint");
-        assert_eq!(
-            relay_endpoint_for_offer(&endpoint),
-            "relay.agentero.app:443"
-        );
+        let endpoint = RelayEndpoint::parse("de.rune.ing:2054").expect("parse endpoint");
+        assert_eq!(relay_endpoint_for_offer(&endpoint), "de.rune.ing:2054");
     }
 
     #[test]

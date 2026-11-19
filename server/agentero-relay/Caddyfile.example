@@ -1,0 +1,7 @@
+# Caddy terminates TLS for the Agentero relay.
+# Reuse the existing de.rune.ing certificate managed on the DE VPS.
+https://de.rune.ing:2054 {
+    tls /etc/caddy/tls/de-rune-ing/fullchain.pem /etc/caddy/tls/de-rune-ing/privkey.pem
+    reverse_proxy 127.0.0.1:47821
+}
+

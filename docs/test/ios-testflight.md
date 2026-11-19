@@ -151,7 +151,7 @@ Provide **App Review Notes** that explain:
    code visible.
 3. On iOS: Scan QR, or paste a pairing link (`agentero://pair#offer=...`).
 4. Confirm the code; then exercise Library → PDF / Notes → Agent over
-   `wss://relay.agentero.app`.
+   `wss://de.rune.ing:2054`.
 
 Paste the full English **App Review notes** block under
 [App Store Connect Metadata](#app-store-connect-metadata). Keep the same
@@ -179,7 +179,7 @@ core flows cannot be verified without pairing.
 | **External TestFlight** | Yes (Beta App Review) | No | Same Sign-in = No + pairing Notes; beta contact info |
 | **App Store version** | Yes (full App Review) | No | Same fields + privacy, screenshots, export compliance, etc. |
 
-Ensure `relay.agentero.app` (or the relay named in Notes) is up for the whole
+Ensure `de.rune.ing:2054` (or the relay named in Notes) is up for the whole
 review window.
 
 ## App Store Connect Metadata
@@ -285,13 +285,13 @@ reviewer needs:
    Confirm the 6-digit code matches.
 4. Once paired, the Library, PDF, and Notes panels render the
    desktop's content over an end-to-end encrypted relay at
-   wss://relay.agentero.app.
+   wss://de.rune.ing:2054.
 
 Without a desktop, the iOS app shows the Connect screen and cannot be
 tested further — this is by design. A sandbox TestFlight review build
 on the App Store reviewer's iPhone will work the same way.
 
-Network egress: the iOS app only contacts wss://relay.agentero.app:443.
+Network egress: the iOS app only contacts wss://de.rune.ing:2054.
 The relay routes opaque X25519+XSalsa20-Poly1305 frames; it does not
 decrypt Vault or Agent content.
 
@@ -407,7 +407,7 @@ note unchanged across localizations.
 
 ```
 Internal pre-release of Agentero iOS. Pairs with the developer's
-desktop Agentero build over the relay at relay.agentero.app. Used for
+desktop Agentero build over the relay at de.rune.ing:2054. Used for
 smoke testing the iOS remote-client shell (Connect → Library → PDF /
 Notes → Agent chat) before the public App Store submission.
 ```

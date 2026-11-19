@@ -1,0 +1,24 @@
+[Unit]
+Description=Agentero self-hosted bridge relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=agentero-relay
+Group=agentero-relay
+WorkingDirectory=/opt/agentero-relay
+ExecStart=/usr/local/bin/node /opt/agentero-relay/relay.mjs
+Environment=HOST=127.0.0.1
+Environment=PORT=47821
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target
+
