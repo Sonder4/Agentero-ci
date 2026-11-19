@@ -38,6 +38,10 @@ Agentero 的重建只采用公开可观察的 Web 入口和产品边界。桌面
 
 当前提供主窗口右侧栏内的 ChatGPT Web 模式和划词提交。后续若要求 Agentero 原生渲染聊天与流式消息，应另行接入官方支持的公开认证与 Responses 接口，并避免依赖从桌面安装包提取的私有协议。
 
+现有网页登录态、会话 Markdown、图片资产、Projects、主题和主页的程序化控制边界见
+[ChatGPT Web 能力与桥接边界](../development/chatgpt-web-capability-analysis.md)。桥接层尚未实现，
+当前代码没有读取账号、导出会话或管理 Projects 的接口。
+
 ## 验证范围
 
 已在 Windows 实机完成开发版验证：通过命令面板和 Agent 菜单打开侧栏、在 Agent / ChatGPT 之间切换并恢复原对话、拖动 Dockview 右栏改变子 WebView 尺寸、从主窗口和独立文档窗分别划取测试文本并在侧栏获得回复、重启应用后继续使用同一登录状态和历史。验证只覆盖 Windows WebView2；macOS WKWebView 与 Linux WebKitGTK 尚未实机验证。

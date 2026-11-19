@@ -18,6 +18,7 @@
 | [usage-analytics.md](usage-analytics.md) | \#239 Activity 总线。P0 存储已落地：XDG `usage.sqlite`（见 [../backend/usage.md](../backend/usage.md)） |
 | [decision-layer.md](decision-layer.md) | 通用决策层：规则 / System One（jEV/Clef）/ LLM 统一为可插拔 provider + routing。**已落地**（见 [../backend/decision.md](../backend/decision.md)），保留为设计记录 |
 | [A2A.md](A2A.md) | 第一版是本机 Agent 经已连接的远程 Vault SSH 委派远端 CLI Agent。完整 Agent Card + Task 仍是草稿 |
+| [chatgpt-web-capability-analysis.md](chatgpt-web-capability-analysis.md) | ChatGPT Web 登录态、会话 Markdown、图片资产、Projects、主题和主页的 REA 可行性分析与同页桥接边界。**设计稿，待实现** |
 
 macOS 签名与公证（已实现流程说明）在 [`../test/macos-signing.md`](../test/macos-signing.md)。
 
