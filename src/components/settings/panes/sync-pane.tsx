@@ -45,6 +45,7 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { authClient } from "@/features/account/client";
+import { accountSurfaceEnabled } from "@/features/account/visibility";
 import { formatLocaleTimestamp } from "@/i18n";
 import { formatBytes } from "@/lib/core/background-tasks";
 import { events } from "@/lib/core/bindings";
@@ -245,6 +246,7 @@ function VaultSyncForm({
 	);
 
 	useEffect(() => {
+		if (!accountSurfaceEnabled) return;
 		let cancelled = false;
 		void authClient.getSession().then((result) => {
 			const id = result.data?.session.activeOrganizationId ?? "";
