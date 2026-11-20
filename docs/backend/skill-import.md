@@ -5,7 +5,7 @@
 ## 1. 背景与现状
 
 - 魔棒输入的类型识别完全在 Host 侧：`crates/agentero-core/src/features/paper/scholar_api/sources/skill.rs` 的 `extract_skill_source()`（`SkillSource`，识别为 `skill` kind，不入 resolver 表，但由 `scholar_api::identifiers` 统一 re-export）和 `import::identifiers::extract_primary_identifier()`（其余标识符走 `scholar_api::identifiers::resolver` 静态表）。Skill 识别发生在普通 URL 分支之前，GitHub 链接不会再被送入 Translator `/web`。
-- 前端不做识别，只切分多条输入（`src/components/sidebar/vault-sidebar-header.tsx` `parseLookupTexts()`），经 `lookup_import_batch`（`src-tauri/src/features/import/commands.rs:17`）进入 `import_by_identifier_batch`。
+- 前端不做识别，只切分多条输入（`src/components/sidebar/vault-sidebar-header.tsx` `parseLookupTexts()`），经 `lookup_import_batch`（`src-tauri/src/features/paper/import/commands.rs`）进入 `import_by_identifier_batch`。
 - Skill 目录约定已存在：`vault/.agents/skills/<id>/SKILL.md`（YAML frontmatter `name` / `description`，解析见 `src-tauri/src/features/agent/prompt/skills.rs` `parse_skill_metadata`）；`ensure_vault()` 播种 bundled skills，并按 frontmatter 整数 `version` 升级第一方 Skill（盘上版本低于模板则覆盖；无 `version` / 同版本 / 更高版本不覆盖）。
 - 文件树中 `.agents` 是 eager 目录（`src/lib/vault/tree.ts` `TREE_EAGER_ROOT_NAMES` / `TREE_ALLOWED_DOT_NAMES`），写入后 `refreshTree` 即可见。
 - 仓库内**没有任何 git clone / npm 逻辑**；候选发现与选中目录下载都走 GitHub REST API，不执行第三方代码。
@@ -58,7 +58,7 @@
 - 进度沿用左下角后台任务条（`job:progress`）。
 - 当前实现先返回 `LookupImportBatchResult.skillCandidates`，前端打开多选 Dialog。`--skill <name>`、GitHub tree 子目录会缩小候选范围。
 - 用户取消时删除 discovery 临时包；确认后调用 `skill_install`，再 `refreshTree` + toast 汇总安装结果。**不** `openPaper`、不进补资产队列。论文和 Skill 可混合提交。
-- 远程 Vault：首版禁用（提示暂不支持），后续经 remote bridge + SFTP 镜像（`features/remote/launch.rs` 已有 skills 镜像逻辑）。
+- 远程 Vault：首版禁用（提示暂不支持），后续经 remote bridge + SFTP 镜像（`src-tauri/src/integration/remote/launch.rs` 已有 skills 镜像逻辑）。
 
 ## 5. 安全
 

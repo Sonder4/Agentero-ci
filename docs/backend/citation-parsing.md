@@ -1,11 +1,11 @@
 # 参考文献解析（Citation Parsing）
 
-> 状态：**M1 + M2 + M3(PDF 内交互) + 反向引用发现 已实现**（M1：Host `features/refs/` — L1 在线 S2/Crossref + L2 本地 bib/bbl/thebibliography + sidecar + 库内匹配，命令契约见 [api.md](api.md) `paper_refs_parse` / `paper_refs_list`；M2：右侧栏 References tab 引用卡片，见 [../frontend/shell.md](../frontend/shell.md)；M3：PDF Link annotation 覆盖层 — 点击 GoTo 跳页 / URI 外链、hover 引用锚文本显示元数据预览并联动引用卡片高亮；反向引用发现：`library_citing_scan`，见 §7）。剩余草稿：卡片 → PDF 反向 hover 高亮、Agent `#` 提及。
+> 状态：**M1 + M2 + M3(PDF 内交互) + 反向引用发现 已实现**（M1：Host `features/paper/analyze/refs/`（core + src-tauri 命令壳）— L1 在线 S2/Crossref + L2 本地 bib/bbl/thebibliography + sidecar + 库内匹配，命令契约见 [api.md](api.md) `paper_refs_parse` / `paper_refs_list`；M2：右侧栏 References tab 引用卡片，见 [../frontend/shell.md](../frontend/shell.md)；M3：PDF Link annotation 覆盖层 — 点击 GoTo 跳页 / URI 外链、hover 引用锚文本显示元数据预览并联动引用卡片高亮；反向引用发现：`library_citing_scan`，见 §7）。剩余草稿：卡片 → PDF 反向 hover 高亮、Agent `#` 提及。
 
 ## 1. 背景与现状
 
 - arXiv 入库时 e-print 已完整解压到 `{paper}/source/`（`crates/agentero-core/src/features/paper/import/download.rs` `unpack_arxiv_eprint`），其中**天然包含 `.bbl`、偶有 `.bib`**。
-- 非 arXiv PDF 入库后由 liteparse 生成 `PAPER.md`（`src-tauri/src/features/paper/analyze/parse/mod.rs`），References 段以纯文本存在，`extract_links: true` 已开启。
+- 非 arXiv PDF 入库后由 liteparse 生成 `PAPER.md`（`crates/agentero-core/src/features/paper/analyze/parse/mod.rs`），References 段以纯文本存在，`extract_links: true` 已开启。
 - catalog（v3）没有 references 存储，仅有标量 `citation_count`。
 - PDF 查看器（EmbedPDF / PDFium）已加载页内 Link annotation，文中 citation 点击可跳转；`goToPage` 与 destination 解析（`src/lib/pdf/bookmark.ts`）已有基础。
 - 右侧栏新增 tab 的三处扩展点：`src/lib/shell/ui-store.ts`、`src/components/shell/title-bar.tsx`、`src/components/shell/right-sidebar.tsx`。
@@ -93,7 +93,7 @@
 
 ## 7. 反向引用发现（谁引用了我的库）
 
-> 状态：**已实现**（Host `features/refs/citing.rs`，命令 `library_citing_scan`，入口在文件树 `papers/` 论文库节点右键）。
+> 状态：**已实现**（Host `crates/agentero-core/src/features/paper/analyze/refs/citing.rs`，命令 `library_citing_scan`，入口在文件树 `papers/` 论文库节点右键）。
 
 方向与本文其余部分**相反**：不是「这篇论文引了谁」，而是「库里的论文被哪些**新论文**引用了、且这些新论文还没入库」。和 M5 的「未入库一键导入」不是同一件事——那个是正向引用的批量版。
 

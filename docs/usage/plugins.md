@@ -37,4 +37,4 @@
 
 修改原始插件目录不会自动改变已经安装的代码。在线市场、自动更新和签名发布不在当前版本范围内。
 
-开发插件请参阅 [本地插件系统与 API](../backend/plugins.md) 及仓库中的 `examples/plugins/sdk.d.ts`。
+开发插件请参阅 [本地插件系统与 API](../backend/plugins.md)（插件示例与 SDK 类型声明已移出仓库）。

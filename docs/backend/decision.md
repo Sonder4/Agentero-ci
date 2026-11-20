@@ -1,7 +1,8 @@
 # 决策层（Decision Layer）
 
 > 状态：核心引擎已实现。jEV 智能高亮、文件树点击已接入；语义 provider 可配置为
-> TypeSafe jEV、Cloudflare Clef 或兼容 System One 的端点。语义决策当前未暴露给前端。
+> TypeSafe jEV、Cloudflare Clef 或兼容 System One 的端点。前端只有一个受限入口
+> `decision_gateway_decide`（仅 `pdf.selection.intent`），目前没有调用方，见下文「前端入口」。
 
 决策层把“需要二选一/多选一/打分”的判断统一成一次 *decision*：给定 `decisionId` 与
 `state`，由注册的 provider（确定性规则、System One 决策模型、未来 LLM）给出带来源与
@@ -36,7 +37,7 @@
 ```
 
 - **后端（Rust）**：`crates/agentero-core/src/decision/`，Tauri 无关，CLI 可复用。
-- **前端（TS）**：语义决策当前没有前端入口；纯前端状态的规则走 `decideSync` 本地注册表。
+- **前端（TS）**：语义决策只经 `decision_gateway_decide` 网关暴露 `pdf.selection.intent` 一个决策；纯前端状态的规则走 `decideSync` 本地注册表。
 
 ## 后端（`agentero-core::decision`）
 
@@ -148,8 +149,19 @@ DecisionSchema::new("pdf.selection.intent", "…")
 
 ### 前端入口
 
-目前没有面向前端的 IPC：原 `decide` 命令与前端 `useDecision` hook 已移除，语义决策尚未
-暴露给前端。纯前端规则仍走 `decideSync`。
+原通用 `decide` 命令与前端 `useDecision` hook 已移除。现在唯一的前端 IPC 是受限网关
+`decision_gateway_decide`（`src-tauri/src/features/decision/commands.rs`）：
+
+- 只接受 `decisionId = "pdf.selection.intent"`；`requestId`、`stateVersion`、`targetIdentity`、
+  `contextIdentity` 必填，`allowedActionIds` 先与 Host 白名单 `PDF_SELECTION_ACTIONS` 取交集，
+  为空即拒绝。
+- 规则优先：`state.requestedAction` 在允许集合内时直接返回；否则回退到 System One provider。
+- 全局并发上限 2（`Semaphore`），占满时立即返回 `decision gateway is busy`，不排队。
+- 返回 `{ recommendation, allowedActionIds, traceId }`；`recommendation` 只是建议，执行仍由前端
+  在允许集合内决定。
+
+前端封装是 `src/lib/navigator/decision-gateway.ts` 的 `requestPdfSelectionIntent`（非 Tauri
+环境直接返回 `recommendation: null`），当前尚无调用方。纯前端规则仍走 `decideSync`。
 
 ## 前端（React）
 

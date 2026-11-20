@@ -128,7 +128,7 @@ Host `notify` → `vault:file-changed`。打开的 `.md`/`NOTES.md` 磁盘变化
 
 ### 配色主题
 
-设置 → Appearance `uiTheme`（默认 `default`）。36 个 tweakcn 预设打包于 `src/themes/tweakcn.json`，`src/lib/ui/theme.ts` 运行时注入 CSS 变量。详见 [frontend/settings.md](frontend/settings.md)。
+设置 → Appearance `uiTheme`（默认 `default`）。36 个 tweakcn 预设打包于 `src/themes/tweakcn-themes.json`（清单 `tweakcn-manifest.json`），`src/lib/ui/theme.ts` 运行时注入 CSS 变量。详见 [frontend/settings.md](frontend/settings.md)。
 
 ### 日志
 

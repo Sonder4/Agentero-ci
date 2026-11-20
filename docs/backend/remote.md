@@ -14,7 +14,7 @@
 | 入库 / 回收站 | 远端写路径与 trash bridge。回收站的资格、manifest 与 batch id 校验在 core `plan_trash`，bridge 只做 `VaultFs` 移动和既有 `cat.push`。features 命令经反转 trait `import::RemoteImportOps` / `trash::remote_ops::RemoteTrashOps` 调用（`integration::remote` 实现并在 app 启动时注册为 State） |
 | Connector | 可绑定 `remote:<sessionId>` |
 
-前端伪路径 `remote:<sessionId>`（解析在 `core/remote.rs`，纯字符串工具，features/integration 共用）。客户端：**macOS / Linux**（Windows 客户端暂不支持打开远程 Vault）。
+前端伪路径 `remote:<sessionId>`（解析在 `crates/agentero-core/src/remote.rs`，纯字符串工具，features/integration 共用）。客户端：**macOS / Linux**（Windows 客户端暂不支持打开远程 Vault）。
 
 ## Catalog 发布
 

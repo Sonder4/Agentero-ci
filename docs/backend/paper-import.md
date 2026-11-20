@@ -1,6 +1,6 @@
 # 论文入库
 
-多入口共享落盘内核 **`paper_commit`**（`features/import/paper_import`）：分配路径、写 catalog、NOTES 壳、资源。主 PDF 到位后，若 `code_repo` 为空且用户没有改过该字段，从摘要、首页脚注和文末写入论文自己的 GitHub 仓库。已经在库里的论文在下一次打开时补扫一次（见 [catalog.md](catalog.md)）。
+多入口共享落盘内核 **`paper_commit`**（`crates/agentero-core/src/features/paper/import/paper_import`）：分配路径、写 catalog、NOTES 壳、资源。主 PDF 到位后，若 `code_repo` 为空且用户没有改过该字段，从摘要、首页脚注和文末写入论文自己的 GitHub 仓库。已经在库里的论文在下一次打开时补扫一次（见 [catalog.md](catalog.md)）。
 
 ## 入口
 
@@ -229,7 +229,7 @@ stock PDFium（例如 bblanchon/pdfium-binaries）能 `LoadLibrary`，但缺 for
 
 时序约定：`paper_commit` 以 `defer_parse_jobs: true` 让返回的 `PreparationPlan` 不含 ParseBody/ParseRefs（commit 不再调用 `HostHooks` spawn）。桌面命令按计划入队；Host 调度器对处于 `RecognizeMetadata` 阶段的论文直接延后/跳过 `ParseBody`、`ParseRefs`、`LayoutAnalyze` 与 `reconcile` 命令，由 RecognizeMetadata runner 在目录名尘埃落定后统一按最终路径编排 PAPER.md / refs / layout，避免改名前抢跑产生重复解析与目录移动冲突。
 
-- 实现：识别链路 `src-tauri/src/features/paper/import/recognize/pdf_recognize.rs`（payload 组装 + HTTP client + `map_crossref_work`）；probe worker 变体在 `pdf_parse/mod.rs`（`--agentero-internal-pdf-recognize-worker`）；job 编排 `import/job_runners.rs::recognize_metadata_runner`。
+- 实现：识别链路 `crates/agentero-core/src/features/paper/import/recognize/pdf_recognize.rs`（payload 组装 + HTTP client + `map_crossref_work`）；probe worker 变体在 `pdf_parse/mod.rs`（`--agentero-internal-pdf-recognize-worker`）；job 编排 `import/job_runners.rs::recognize_metadata_runner`。
 - payload 结构复刻 Zotero document-worker `getRecognizerData`：`word = [xMin,yMin,xMax,yMax,fontSize,spaceAfter,baseline,rotation,0,bold,italic,0,fontIndex,text]`，行来自 liteparse 投影行（竖排 arXiv stamp 落到独立行，服务端可重建）。
 - Host 侧 entries 仍支持 `title`/`doi`/`arxivId`/`extra` 覆盖（`meta_source=manual`，走原有同步路径不触发后台识别），供确认对话框/CLI 等调用方使用。
 - 隐私：上传的是前 5 页文本布局 JSON（~200KB），不是 PDF 文件；服务为 Zotero 托管的未公开 API，仅作尽力而为识别，失败无感知。
@@ -247,7 +247,7 @@ stock PDFium（例如 bblanchon/pdfium-binaries）能 `LoadLibrary`，但缺 for
 
 ## 代码
 
-`src-tauri/src/features/import/`  
+`crates/agentero-core/src/features/paper/import/`（落盘内核、识别、来源适配）· `src-tauri/src/features/paper/import/`（命令与任务壳）  
 前端 UI：[../frontend/paper-import.md](../frontend/paper-import.md)
 
 ### 远程版面 PDF 请求预处理

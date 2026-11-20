@@ -824,7 +824,7 @@ arXiv URL 推导：
   2. **论文库工具栏**（已打开 Vault 时）：图标按钮。
   共用 `ZoteroMigrateDialog`。打开时自动探测默认 `~/Zotero` 目录（否则手动选含 `zotero.sqlite` + `storage/` 的目录）；扫描预览以 chips 显示文献 / PDF / 笔记数，迁移后展示结果小结（导入 / 补笔记 / 拷 PDF / 清理）。
 - 选错目录兜底：扫描报 `zotero.sqlite not found` 时，若所选目录的**父目录**含 `zotero.sqlite`（如误选 `storage/`），对话框提示一键改用父目录；否则显示本地化错误（不再透出后端原始英文串）。
-- Host：`zotero_scan`（只读预览：文献数 / 有本地 PDF 数）、`zotero_migrate`（执行）；实现在 `features/zotero/db.rs`。
+- Host：`zotero_scan`（只读预览：文献数 / 有本地 PDF 数）、`zotero_migrate`（执行）；实现在 `src-tauri/src/features/paper/zotero/db.rs`。
 - 读库：把 `zotero.sqlite`（含 `-wal`/`-shm`）**拷到临时目录**再只读打开（容忍 Zotero 正在运行）；查 `items`/`itemData`/`creators`/`itemTags`/`itemAttachments`，跳过 `deletedItems` 与 attachment/note/annotation 类型，并排除插件产生的 `computerProgram` 垃圾条目（如标题为 "Addon Item" 的项）。
 - 集合目录：开启「按 Zotero 分类建子文件夹」时，所有集合（包括空集合）都会先创建。论文单元只有一个物理目录：多集合条目选择层级最深的集合；同深度按完整路径字母顺序稳定取一处。迁移对话框会在开始前报告受影响条目数；所有集合叶子名仍会保留为论文标签。每个完整集合路径另以隐藏 `@zotero:collection:<path>` metadata 保存，并记录 collection tree 的父目录；侧栏会在同一论文的其他真实分类文件夹内插入带链接标识的虚拟条目，全部指向该唯一物理论文目录。
 - 映射：每条**拼装成 Zotero-API-JSON item** → 复用 `map_zotero_item_to_record` + `enrich_remote_urls` + `write_paper_shell` + `PaperRecord::at_path` + catalog upsert，落到 `{parent_dir}/{id}/`（id/citekey 与魔棒 / 文件导入一致）。

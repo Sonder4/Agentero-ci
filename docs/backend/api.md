@@ -871,7 +871,7 @@ Updater 模块与命令注册均排除 Android / iOS，与 Cargo 的 updater 插
 - **HTTP 契约、安全模型、实现 vs 缺口总表**：见 [`connector.md`](connector.md) **§4.5**（权威）。
 - **与魔棒关系**：元数据映射复用 `map_zotero_item_to_record`；入口不同（插件 vs ⇧⌘I）。
 - **设置**：`connectorEnabled` 默认 `false`；与 Zotero 桌面端 **端口互斥**。
-- **实现**：`services/connector/`、`commands/connector.rs`、`src/lib/paper/import/connector.ts`。
+- **实现**：`services/connector/`、`src-tauri/src/integration/connector/commands.rs`、`src/lib/paper/import/connector.ts`。
 - **已挂 HTTP**：`ping`、`saveItems`、`sessionProgress`、`attachmentProgress`、`getSelectedCollection`（含子文件夹 targets）、`updateSession`、`delaySync`、`saveAttachment`、`saveSnapshot`、`saveSingleFile`；另有 `detect`、`savePage`、`selectItems`、`getTranslators`、`proxies` 的安全降级兼容路由。
 
 #### `connector_get_status`
@@ -2376,7 +2376,7 @@ Windows：未设 `XDG_CONFIG_HOME` 时回退 `%APPDATA%/agentero/`。旧版 macO
 
 UI 入口见 `settings_window_open`：Settings 现为独立原生单例窗口，`?window=settings` 路由由 `src/main.tsx` 分支渲染。
 
-实现：`src-tauri/src/features/system/settings/`（`mod.rs` + `commands.rs`）、`core/paths.rs`、`src-tauri/src/app/window/commands.rs`。
+实现：`src-tauri/src/features/system/settings/`（`mod.rs` + `commands.rs`）、`crates/agentero-core/src/paths.rs`、`src-tauri/src/app/window/commands.rs`。
 
 ### 3.10.3 使用记录（XDG `usage.sqlite`）
 
@@ -2455,7 +2455,7 @@ CLI 不再暴露 usage 命令；清除通过桌面端设置 / Host API 操作。
 ```
 
 - **返回**：`Result<(), String>`（成功为 `()`，失败返回错误信息字符串）。
-- **说明**：locale 偏好存于 XDG `settings.json`（`settings_get` / `settings_set`）。Host 启动时以英文兜底构建菜单；前端在 `ensureSettingsLoaded` 后及每次语言切换时调用 `set_locale` 同步。实现见 `src-tauri/src/lib.rs`（`build_menu` + `set_locale`）与 `src-tauri/src/i18n.rs`（菜单词条）。
+- **说明**：locale 偏好存于 XDG `settings.json`（`settings_get` / `settings_set`）。Host 启动时以英文兜底构建菜单；前端在 `ensureSettingsLoaded` 后及每次语言切换时调用 `set_locale` 同步。实现见 `src-tauri/src/app/menu.rs`（`build_menu`、`set_locale` 与 `menu_labels` 菜单词条）。
 
 #### 菜单事件
 

@@ -27,7 +27,7 @@ debug 构建另有「加载开发插件…」：捕获目录源码快照，临�
 - `events`：订阅公开生命周期事件闭集，需要 `vault:read` 授权才接收数据事件。
 - `settings`：最多 32 个 string / boolean / number 字段；包含多语言标题与默认值，宿主生成配置表单。
 
-开发者类型见 `examples/plugins/sdk.d.ts`；完整示例见 `examples/plugins/reading-tools`。公开导出：
+插件示例与 `sdk.d.ts` 类型声明已移出仓库（`chore: remove plugin examples`）；当前以本文与 `crates/agentero-plugin-host` 为准。公开导出：
 
 ```js
 export async function activate(context) { /* 可选：本次会话初始化 */ }

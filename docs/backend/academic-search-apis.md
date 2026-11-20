@@ -11,12 +11,12 @@ Agentero Host 端（`src-tauri/src/features/`）在论文识别、入库、引�
 | 服务 | 主要端点 | 用途 | 核心调用模块 |
 |---|---|---|---|
 | **Semantic Scholar Graph API** | `GET /graph/v1/paper/search` | 标题/关键词搜索 | `features/paper/import/search_router.rs` |
-| **Semantic Scholar Graph API** | `GET /graph/v1/paper/{id}/references` | 在线参考文献补全 | `features/refs/online.rs` |
+| **Semantic Scholar Graph API** | `GET /graph/v1/paper/{id}/references` | 在线参考文献补全 | `agentero-core/src/features/paper/scholar_api/references.rs` |
 | **Semantic Scholar Graph API** | `GET /graph/v1/paper/ARXIV:{id}` / `DOI:{doi}` | venue 回填（`publicationVenue.name`） | `features/paper/scholar_api/sources/semantic_scholar.rs`（`fetch_venue_by_*`），调用方 `features/paper/import/commands.rs` |
-| **Semantic Scholar Graph API** | `GET /graph/v1/paper/{id}/citations` | "谁引用了我" 候选发现 | `features/refs/citing.rs` |
+| **Semantic Scholar Graph API** | `GET /graph/v1/paper/{id}/citations` | "谁引用了我" 候选发现 | `agentero-core/src/features/paper/analyze/refs/citing.rs` |
 | **arXiv Atom API** | `GET https://export.arxiv.org/api/query` | 按 ID 取元数据 / 按标题搜索 | `features/paper/import/mod.rs`, `features/paper/import/search_router.rs` |
 | **arXiv 二进制端点** | `https://arxiv.org/pdf/{id}` / `https://arxiv.org/e-print/{id}` / `https://arxiv.org/src/{id}` | PDF / TeX 源码下载 | `features/paper/import/download.rs` |
-| **Crossref REST API** | `GET https://api.crossref.org/works/{doi}` | DOI → 元数据 / 参考文献 | `features/paper/import/recognize/pdf_recognize.rs`, `features/paper/analyze/refs/online.rs`, `features/paper/catalog/commands.rs` |
+| **Crossref REST API** | `GET https://api.crossref.org/works/{doi}` | DOI → 元数据 / 参考文献 | `features/paper/import/recognize/pdf_recognize.rs`, `features/paper/analyze/refs/mod.rs`, `features/paper/catalog/commands.rs` |
 | **OpenAlex REST API** | `GET https://api.openalex.org/works` | 标题搜索兜底（含 `cited_by_count`） | `features/paper/scholar_api/search.rs`（`SourceScope::All` 兜底源） |
 | **Unpaywall** | `GET https://api.unpaywall.org/v2/{doi}` | DOI → 开放获取 PDF | `features/paper/import/download.rs` |
 | **PubMed / NCBI E-utilities** | `GET https://eutils.ncbi.nlm.nih.gov/entrez/eutils/esearch.fcgi` / `efetch.fcgi` | 标题/PMID → 医学/生命科学元数据 | `features/paper/scholar_api/sources/pubmed.rs` |
@@ -24,16 +24,16 @@ Agentero Host 端（`src-tauri/src/features/`）在论文识别、入库、引�
 | **bioRxiv** | `GET https://api.biorxiv.org/details/biorxiv/{doi}` | DOI → 生命科学预印本元数据 | `features/paper/scholar_api/sources/biorxiv.rs` |
 | **medRxiv** | `GET https://api.biorxiv.org/details/medrxiv/{doi}` | DOI → 医学预印本元数据 | `features/paper/scholar_api/sources/biorxiv.rs` |
 | **Zotero Recognizer** | `POST https://services.zotero.org/recognizer/recognize` | PDF 首页文字几何识别 | `features/paper/import/recognize/pdf_recognize.rs` |
-| **Translator Runtime** | `POST {base}/web`, `POST {base}/search`, `POST {base}/import` | 通用 URL/标识符/题录解析 | `features/import/mod.rs` |
+| **Translator Runtime** | `POST {base}/web`, `POST {base}/search`, `POST {base}/import` | 通用 URL/标识符/题录解析 | `src-tauri/src/features/paper/import/mod.rs` |
 | **Cool Papers (papers.cool)** | `GET https://papers.cool/{branch}/search?query=...`, `GET https://papers.cool/{branch}/kimi?paper={id}` | Kimi 论文解析 / 广场导入 / CLI `paper notes fetch` | `crates/agentero-core/src/features/paper/discovery/coolpapers.rs`（桌面壳：`src-tauri/src/features/paper/discovery/coolpapers/`） |
-| **arXiv RSS** | `GET https://rss.arxiv.org/rss/{category}` | 推荐与订阅流 | `features/recommend/mod.rs`, `features/feeds/` |
+| **arXiv RSS** | `GET https://rss.arxiv.org/rss/{category}` | 推荐与订阅流 | `src-tauri/src/features/paper/discovery/recommend/mod.rs`, `features/feeds/` |
 | **Papers with Code** | `GET https://paperswithcode.co/api/v1/papers/arxiv/{id}?include_resources=true` | 入库后的录用会议 / 官方代码仓库 / 引用数 / TL;DR 补全 | `crates/agentero-core/src/features/paper/discovery/pwc.rs` |
 
 ## 2. 调用链路详解
 
 ### 2.1 论文识别与魔棒入库
 
-入口：`features/import/commands.rs::paper_resolve_identifier`、`features/import/mod.rs::import_by_identifier_with_progress`。
+入口：`src-tauri/src/features/paper/import/commands.rs::paper_resolve_identifier`、`src-tauri/src/features/paper/import/mod.rs::import_by_identifier_with_progress`。
 
 当前主路径按以下顺序尝试：
 
@@ -41,7 +41,7 @@ Agentero Host 端（`src-tauri/src/features/`）在论文识别、入库、引�
    - Semantic Scholar `GET /graph/v1/paper/search?query=...&fields=title,authors,year,venue,publicationVenue,journal,externalIds,citationCount,url` 与 arXiv Atom `GET export.arxiv.org/api/query?search_query=ti:"..."` **并行**发起。S2 在 5s 预算（`S2_SEARCH_BUDGET`）内返回非空则优先（venue 取 `publicationVenue.name`（跳过 `type=repository`），其次 `journal.name`，再次 `venue`），否则取已在途的 arXiv 结果；最坏耗时 ≈ max(预算, 单请求 20s 超时)。
    - 仅保留带 DOI 或 arXiv id 的候选；返回结果会按精确标题匹配重新排序。
    - `resolve_search_queries` 接收前端 `task_id`：关闭搜索卡片取消任务后，剩余查询直接跳过。
-2. **Translator Runtime**（`features/import/mod.rs::resolve_metadata`）
+2. **Translator Runtime**（`src-tauri/src/features/paper/import/mod.rs::resolve_metadata`）
    - 若用户输入被识别为 arXiv id / DOI / URL，会构造 `{base}/web` 或 `{base}/search` 请求。
    - arXiv 的各类输入（`2508.05004`、`arXiv:2508.05004v2`、`https://arxiv.org/pdf/...`、`https://arxiv.org/html/...`）都会被规范化为 `https://arxiv.org/abs/{id}` 再走 `/web`。
    - HTTP 503 与响应体里的 `error code: 1102`（Cloudflare Worker 资源上限）记为 `service_unavailable`，同一请求再试两次（400ms、800ms）后放弃这次调用。
@@ -69,14 +69,14 @@ Agentero Host 端（`src-tauri/src/features/`）在论文识别、入库、引�
 
 ### 2.3 参考文献在线补全
 
-入口：`features/refs/online.rs::fetch_references`。
+入口：`crates/agentero-core/src/features/paper/scholar_api/references.rs::fetch_references`（由 core `features/paper/analyze/refs/mod.rs` 调用）。
 
 - 优先 Semantic Scholar：`GET /graph/v1/paper/{id}/references?fields=title,authors,year,venue,externalIds,url&limit=1000`，`{id}` 为 `arXiv:...` 或 `DOI:...`。
 - 失败或无结果且存在 DOI 时，fallback Crossref：`GET api.crossref.org/works/{doi}?mailto=agentero@users.noreply.github.com`，取 `message.reference[]`。
 
 ### 2.4 反向引用发现（"谁引用了我"）
 
-入口：`features/refs/citing.rs`。
+入口：`agentero-core/src/features/paper/analyze/refs/citing.rs`。
 
 - 仅使用 Semantic Scholar：`GET /graph/v1/paper/{id}/citations?fields=...&offset={offset}&limit={limit}`。
 - 因为 OpenAlex 的 arXiv 预印件引用边稀疏，所以未采用。
@@ -84,7 +84,7 @@ Agentero Host 端（`src-tauri/src/features/`）在论文识别、入库、引�
 
 ### 2.5 Venue / Publication 回填
 
-入口：`features/import/commands.rs::paper_backfill_publication`。
+入口：`src-tauri/src/features/paper/import/commands.rs::paper_backfill_publication`。
 
 用于 Library 的 publication 列批量补全。实测各源准确度：
 
@@ -121,7 +121,7 @@ UI 刷新（`paper_resolve_identifier`）对 DOI/arXiv/URL **先走标识符解�
 
 ### 2.7 推荐与订阅
 
-入口：`features/recommend/mod.rs`。
+入口：`src-tauri/src/features/paper/discovery/recommend/mod.rs`。
 
 - 按用户关注的 arXiv category 拉取 `https://rss.arxiv.org/rss/{category}`。
 - 解析后基于本地 embedding 做相似度排序，产生推荐候选。
@@ -131,7 +131,7 @@ UI 刷新（`paper_resolve_identifier`）对 DOI/arXiv/URL **先走标识符解�
 入口：`features/feeds/`。
 
 - 订阅源同样以 `rss.arxiv.org` 为主。
-- `features/feeds/parse.rs::extract_paper_url` 会把 `rss.arxiv.org` 链接规范化到 `arxiv.org/abs/{id}`，并支持 Nature DOI 链接提取。
+- `agentero-core/src/features/paper/discovery/feeds/parse.rs::extract_paper_url` 会把 `rss.arxiv.org` 链接规范化到 `arxiv.org/abs/{id}`，并支持 Nature DOI 链接提取。
 
 ### 2.9 Cool Papers (papers.cool)
 
