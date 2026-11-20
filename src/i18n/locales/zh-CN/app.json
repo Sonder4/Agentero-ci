@@ -27,13 +27,13 @@
 	"chatgptQuote": {
 		"selection": "已选 {{count}} 项",
 		"remove": "移除引用",
-		"question": "补充问题",
-		"insert": "填入 ChatGPT 草稿",
-		"insertHint": "填入当前 ChatGPT 对话的空输入框",
-		"copy": "复制草稿",
-		"copyFailed": "无法复制 ChatGPT 草稿。",
-		"draftOccupied": "ChatGPT 输入框已有草稿。可用「复制草稿」手动添加引用。",
-		"insertFailed": "无法填入 ChatGPT 草稿。请重试，或使用「复制草稿」。"
+		"attach": "附加到 ChatGPT",
+		"attaching": "正在附加…",
+		"attachHint": "将此摘录作为 Markdown 附件上传到当前 ChatGPT 对话",
+		"copy": "复制引用",
+		"copyFailed": "无法复制引用。",
+		"attachFailed": "无法附加引用。请打开 ChatGPT 对话后重试，或复制引用。",
+		"attachUnconfirmed": "请先检查 ChatGPT 输入区是否已有该附件，再重试。"
 	},
 	"commands": {
 		"catApp": "应用",

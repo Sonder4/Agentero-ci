@@ -308,73 +308,123 @@ pub async fn chatgpt_sidebar_open(
 
 #[tauri::command]
 #[specta::specta]
-pub async fn chatgpt_sidebar_insert_draft(
+pub async fn chatgpt_sidebar_attach_quote(
     app: AppHandle,
     caller: tauri::Webview,
-    draft: String,
+    preview: String,
+    quote: String,
 ) -> Result<(), String> {
     if caller.label() != "main" {
-        return Err("chatgpt_sidebar_draft_requires_main_window".into());
+        return Err("chatgpt_sidebar_quote_requires_main_window".into());
     }
-    if draft.trim().is_empty() || draft.len() > 128 * 1024 {
-        return Err("invalid_chatgpt_draft".into());
+    if preview.len() > 1024 || quote.trim().is_empty() || quote.len() > 128 * 1024 {
+        return Err("invalid_chatgpt_quote".into());
     }
     let webview = app
         .get_webview(CHATGPT_SIDEBAR_WEBVIEW_LABEL)
         .ok_or_else(|| "chatgpt_sidebar_unavailable".to_string())?;
-    let draft = serde_json::to_string(&draft).map_err(|error| error.to_string())?;
-    let (send, mut receive) = tokio::sync::mpsc::channel(1);
-    let op = OpTimer::start("chatgpt_sidebar_insert_draft");
-    webview.set_focus().map_err(|error| error.to_string())?;
-    webview
-        .eval_with_callback(format!(
-            r##"(() => {{
-                if (location.origin !== "https://chatgpt.com") return "wrong_origin";
-                const visibleEditors = Array.from(document.querySelectorAll("textarea, [contenteditable]"))
-                    .filter(element => (element instanceof HTMLTextAreaElement || element.isContentEditable)
-                        && !element.matches(":disabled, [readonly], [aria-disabled=true]")
-                        && !element.closest("[inert], [aria-hidden=true], [role=dialog]")
-                        && element.getClientRects().length > 0
-                        && getComputedStyle(element).visibility === "visible");
-                const namedEditor = visibleEditors.find(element => element.matches(
-                    "#prompt-textarea, [data-testid=prompt-textarea], [aria-label*='ChatGPT' i], [placeholder*='ChatGPT' i]"));
-                const composerEditors = visibleEditors.filter(element =>
-                    element.closest("main form, [role=main] form, [data-testid*=composer], [id*=composer]"));
-                const editor = namedEditor ?? (composerEditors.length === 1 ? composerEditors[0] : null);
-                if (!editor) return "composer_missing";
-                const readDraft = () => editor instanceof HTMLTextAreaElement ? editor.value : editor.innerText;
-                if (readDraft().trim() || editor.querySelector("img, [contenteditable=false]")) return "composer_occupied";
-                const draft = {draft};
-                editor.focus();
-                document.execCommand("insertText", false, draft);
-                const compact = text => text.replace(/\s+/g, " ").trim();
-                return compact(readDraft()) === compact(draft) ? "inserted" : "insert_failed";
-            }})();"##
-        ), move |result| {
-            let _ = send.try_send(result);
-        })
-        .map_err(|error| error.to_string())?;
-    let result = tokio::time::timeout(std::time::Duration::from_secs(3), receive.recv()).await;
-    let status = match result {
-        Ok(Some(result)) => serde_json::from_str::<String>(&result).ok(),
-        _ => None,
-    };
-    match status.as_deref() {
-        Some("inserted") => {
+    let url = webview.url().map_err(|error| error.to_string())?;
+    let filename = chatgpt_quote_filename(&preview, &quote);
+    let op = OpTimer::start("chatgpt_sidebar_attach_quote");
+    let result = attach_chatgpt_quote(&webview, url.as_str(), &filename, &preview, &quote).await;
+    match result {
+        Ok(()) => {
             op.finish_ok();
+            let _ = webview.set_focus();
             Ok(())
         }
-        status => {
-            let code = match status {
-                Some("wrong_origin") => "wrong_origin",
-                Some("composer_missing") => "composer_missing",
-                Some("composer_occupied") => "composer_occupied",
-                _ => "insert_failed",
-            };
-            op.finish_err_msg(code, code);
+        Err((code, status)) => {
+            op.finish_err_msg(code, status);
             Err(code.into())
         }
     }
+}
+
+fn chatgpt_quote_filename(preview: &str, quote: &str) -> String {
+    let title: String = preview
+        .chars()
+        .map(|ch| match ch {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => ' ',
+            ch if ch.is_control() => ' ',
+            ch => ch,
+        })
+        .collect();
+    let title = title.split_whitespace().collect::<Vec<_>>().join(" ");
+    let title = title.trim_matches(['.', ' ']);
+    let mut prefix: String = title.chars().take(36).collect();
+    if prefix.len() < title.len() {
+        prefix.truncate(prefix.trim_end().len());
+        prefix.push('…');
+    }
+    let title = if prefix.is_empty() {
+        "Excerpt"
+    } else {
+        &prefix
+    };
+    let hash = hex::encode(Sha256::digest(quote.as_bytes()));
+    format!("{title} · {}.md", &hash[..8])
+}
+
+async fn attach_chatgpt_quote(
+    webview: &tauri::Webview,
+    url: &str,
+    filename: &str,
+    preview: &str,
+    quote: &str,
+) -> Result<(), (&'static str, &'static str)> {
+    let request = serde_json::json!({
+        "url": url, "filename": filename, "preview": preview, "text": quote
+    });
+    match eval_chatgpt_quote(webview, &request).await.as_deref() {
+        Some("attached") => return Ok(()),
+        Some("queued" | "processing") => (),
+        Some(
+            "wrong_origin"
+            | "conversation_changed"
+            | "composer_missing"
+            | "attachment_unavailable"
+            | "attachment_failed",
+        ) => {
+            return Err(("attachment_unavailable", "composer_rejected_attachment"));
+        }
+        _ => return Err(("attachment_unconfirmed", "upload_dispatch_unconfirmed")),
+    }
+
+    let check = serde_json::json!({ "url": url, "filename": filename, "preview": preview });
+    let mut status = "card_not_visible";
+    for _ in 0..48 {
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        match eval_chatgpt_quote(webview, &check).await.as_deref() {
+            Some("attached") => return Ok(()),
+            Some("waiting") => status = "card_not_visible",
+            Some("processing") => status = "card_processing",
+            Some("attachment_failed") => {
+                return Err(("attachment_unavailable", "upload_failed"));
+            }
+            Some("conversation_changed") => {
+                return Err(("attachment_unconfirmed", "conversation_changed"));
+            }
+            _ => break,
+        }
+    }
+    Err(("attachment_unconfirmed", status))
+}
+
+async fn eval_chatgpt_quote(
+    webview: &tauri::Webview,
+    request: &serde_json::Value,
+) -> Option<String> {
+    let script = include_str!("chatgpt-quote-attachment.js");
+    let (send, mut receive) = tokio::sync::mpsc::channel(1);
+    webview
+        .eval_with_callback(format!("{script}({request});"), move |result| {
+            let _ = send.try_send(result);
+        })
+        .ok()?;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(3), receive.recv())
+        .await
+        .ok()??;
+    serde_json::from_str(&result).ok()
 }
 
 /// Hide the embedded ChatGPT WebView when the right rail is closed or another

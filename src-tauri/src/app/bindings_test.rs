@@ -241,7 +241,7 @@ pub(crate) fn export_typescript_bindings() {
             crate::app::terminal::commands::terminal_apps_probe,
             crate::app::window::commands::window_new,
             crate::app::window::commands::chatgpt_sidebar_open,
-            crate::app::window::commands::chatgpt_sidebar_insert_draft,
+            crate::app::window::commands::chatgpt_sidebar_attach_quote,
             crate::app::window::commands::chatgpt_sidebar_hide,
             crate::app::window::commands::chatgpt_sidebar_close,
             crate::app::window::commands::settings_window_open,

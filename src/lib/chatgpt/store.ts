@@ -6,14 +6,12 @@ type ChatGptSidebarState = {
 	requestId: number;
 	pendingPrompt: string | null;
 	quotes: ChatGptQuote[];
-	question: string;
 };
 
 export const chatGptSidebarStore = createStore<ChatGptSidebarState>(() => ({
 	requestId: 0,
 	pendingPrompt: null,
 	quotes: [],
-	question: "",
 }));
 
 let nextQuoteId = 0;

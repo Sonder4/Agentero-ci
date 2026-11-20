@@ -633,9 +633,7 @@ agentero ui click "<同名控件>" --occurrence 2
 agentero ui click "<阅读区或控件>" --right
 agentero ui click chatgpt.selection.ask
 agentero ui click chatgpt.page.ask
-agentero ui click chatgpt.quote.question
-agentero ui fill "请解释引用的这段话"
-agentero ui click chatgpt.quote.insert
+agentero ui click chatgpt.quote.attach
 ```
 
 - `actions` 列出当前窗口可用的命令、全局快捷键和可见控件。控件有操作 ID 时优先使用 ID。也可使用当前界面语言的完整名称，同名控件用从 1 开始的 `occurrence` 选择。菜单或模态对话框打开时，列表以当前交互范围为准。
@@ -644,7 +642,7 @@ agentero ui click chatgpt.quote.insert
 - `fill` 替换当前聚焦的应用文本输入框或文本域，触发应用的输入逻辑，支持空值清空。密码和令牌设置使用对应的 `settings` 命令。
 - 默认目标为 `main`，可用 `--window` 显式指定 `settings` 或已打开的应用窗口 label。请求由当前用户的本地目录投递，等待对应窗口挂载后处理。浏览器深链无法投递这些操作。桌面确认动作分派后，界面继续处理对话框和后台任务。测试脚本可再次查询 `ui actions --json` 检查下一步控件。
 - 控件范围覆盖 Agentero 渲染的界面。操作系统标题栏、系统文件对话框、网页 iframe 与 ChatGPT 子 WebView 由各自的宿主接收输入。浏览器原生文本编辑、焦点切换等默认行为仍需要实际按键。
-- 在广场代理网页或 HTML 论文阅读器中，`chatgpt.page.ask` 点击工具栏的「向 ChatGPT 询问此页」。网页正文菜单已打开时，`chatgpt.page.contextAsk` 执行同一动作。添加后可用 `ui actions --json` 确认引用控件出现，再填写补充问题并填入网页草稿。
+- 在广场代理网页或 HTML 论文阅读器中，`chatgpt.page.ask` 点击工具栏的「向 ChatGPT 询问此页」。网页正文菜单已打开时，`chatgpt.page.contextAsk` 执行同一动作。添加后可用 `ui actions --json` 确认引用控件出现。`chatgpt.quote.attach` 将对应摘录上传为 Markdown 附件，`chatgpt.quote.copy` 和 `chatgpt.quote.remove` 操作本地预览。问题在 ChatGPT 网页输入框中填写。
 
 ### 系统外壳集成（右键「用 Agentero 打开」）
 

@@ -27,13 +27,13 @@
 	"chatgptQuote": {
 		"selection": "Selected excerpts ({{count}})",
 		"remove": "Remove excerpt",
-		"question": "Add a question",
-		"insert": "Fill ChatGPT draft",
-		"insertHint": "Fill the empty input in the current ChatGPT chat",
-		"copy": "Copy draft",
-		"copyFailed": "Could not copy the ChatGPT draft.",
-		"draftOccupied": "ChatGPT already has a draft. Use Copy draft to add the quote manually.",
-		"insertFailed": "Could not fill the ChatGPT draft. Try again or use Copy draft."
+		"attach": "Attach to ChatGPT",
+		"attaching": "Attaching…",
+		"attachHint": "Upload this excerpt as a Markdown attachment in the current ChatGPT chat",
+		"copy": "Copy excerpt",
+		"copyFailed": "Could not copy the excerpt.",
+		"attachFailed": "Could not attach the excerpt. Open a ChatGPT chat and try again, or copy the excerpt.",
+		"attachUnconfirmed": "Check the ChatGPT input for the attachment before trying again."
 	},
 	"commands": {
 		"catApp": "App",
