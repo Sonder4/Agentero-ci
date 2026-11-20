@@ -1521,81 +1521,39 @@ fn doctor_alias_fix_is_confirmed_preserves_content_and_is_idempotent() {
     );
 }
 
+/// Write test rows straight into the Vault catalog. Passing SQL to an external
+/// `sqlite3` encodes non-ASCII arguments with the system code page on Windows.
+fn execute_catalog(vault: &Path, sql: &str, params: impl rusqlite::Params) {
+    let db = vault.join(".agentero").join("catalog.sqlite");
+    let conn = rusqlite::Connection::open(&db).unwrap();
+    conn.execute(sql, params).unwrap();
+}
+
 /// Minimal catalog seed without Translator (mirrors papers table columns used by list/get).
 fn seed_paper(vault: &Path, path: &str, id: &str, title: &str) {
-    use std::process::Command;
-    // Prefer embedding via agentero_lib in a helper binary — for tests, call sqlite3 if present,
-    // else use a tiny Rust approach: write through the same ensure_catalog by invoking a one-off.
-    // We use the `agentero` crate isn't linked in tests, so open with rusqlite via shell to the CLI's
-    // dependency is awkward. Use `sqlite3` CLI if available; otherwise write SQL with a small rustc —
-    // simplest: use the fact that catalog is created and insert with `rusqlite` as a build-dep.
-    //
-    // assert_cmd tests cannot depend on agentero_lib easily without [dev-dependencies] path.
-    // Add rusqlite as dev-dep... already only assert_cmd. Use std::process + python?
-    // Fastest robust approach: add agentero_lib as dev-dependency — already transitive.
-    // We'll use raw SQL via the `sqlite3` binary, with fallback to writing a metadata-only approach.
-    let db = vault.join(".agentero").join("catalog.sqlite");
     let now = "2020-01-01T00:00:00.000Z";
-    let sql = format!(
+    execute_catalog(
+        vault,
         "INSERT INTO papers (path, id, type, title, authors_json, tags_json, status, added_at, updated_at, is_read)
-         VALUES ('{path}', '{id}', 'article', '{title}', '[]', '[]', 'completed', '{now}', '{now}', 0);"
+         VALUES (?1, ?2, 'article', ?3, '[]', '[]', 'completed', ?4, ?4, 0)",
+        rusqlite::params![path, id, title, now],
     );
-    let status = Command::new("sqlite3").arg(&db).arg(&sql).status();
-    if status.map(|s| s.success()).unwrap_or(false) {
-        return;
-    }
-    // Fallback: use Python sqlite3 stdlib
-    let py = format!(
-        r#"import sqlite3; c=sqlite3.connect(r"{db}"); c.execute({sql:?}); c.commit()"#,
-        db = db.display(),
-        sql = sql
-    );
-    let status = Command::new("python3").args(["-c", &py]).status().unwrap();
-    assert!(status.success(), "failed to seed catalog");
 }
 
 fn set_tags_json(vault: &Path, path: &str, tags_json: &str) {
-    use std::process::Command;
-    let db = vault.join(".agentero").join("catalog.sqlite");
-    let sql = format!(
-        "UPDATE papers SET tags_json = '{tags_json}' WHERE path = '{path}';",
-        tags_json = tags_json.replace('\'', "''"),
-        path = path.replace('\'', "''"),
+    execute_catalog(
+        vault,
+        "UPDATE papers SET tags_json = ?1 WHERE path = ?2",
+        rusqlite::params![tags_json, path],
     );
-    let status = Command::new("sqlite3").arg(&db).arg(&sql).status();
-    if status.map(|s| s.success()).unwrap_or(false) {
-        return;
-    }
-    let py = format!(
-        r#"import sqlite3; c=sqlite3.connect(r"{db}"); c.execute("UPDATE papers SET tags_json = ? WHERE path = ?", ({tags:?}, {path:?})); c.commit()"#,
-        db = db.display(),
-        tags = tags_json,
-        path = path,
-    );
-    let status = Command::new("python3").args(["-c", &py]).status().unwrap();
-    assert!(status.success(), "failed to update tags");
 }
 
 fn set_paper_authors_and_year(vault: &Path, path: &str, authors_json: &str, year: i32) {
-    use std::process::Command;
-    let db = vault.join(".agentero").join("catalog.sqlite");
-    let sql = format!(
-        "UPDATE papers SET authors_json = '{authors_json}', year = {year} WHERE path = '{path}';",
-        authors_json = authors_json.replace('\'', "''"),
-        path = path.replace('\'', "''"),
+    execute_catalog(
+        vault,
+        "UPDATE papers SET authors_json = ?1, year = ?2 WHERE path = ?3",
+        rusqlite::params![authors_json, year, path],
     );
-    let status = Command::new("sqlite3").arg(&db).arg(&sql).status();
-    if status.map(|s| s.success()).unwrap_or(false) {
-        return;
-    }
-    let py = format!(
-        r#"import sqlite3; c=sqlite3.connect(r"{db}"); c.execute("UPDATE papers SET authors_json = ?, year = ? WHERE path = ?", ({authors:?}, {year}, {path:?})); c.commit()"#,
-        db = db.display(),
-        authors = authors_json,
-        path = path,
-    );
-    let status = Command::new("python3").args(["-c", &py]).status().unwrap();
-    assert!(status.success(), "failed to update paper metadata");
 }
 
 #[test]

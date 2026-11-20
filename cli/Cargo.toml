@@ -36,4 +36,6 @@ hex = "0.4.3"
 [dev-dependencies]
 assert_cmd = "2"
 predicates = "3"
+# Same version and features as agentero-core, so tests reuse its build.
+rusqlite = { version = "0.32", features = ["bundled"] }
 serde_json = { workspace = true }
