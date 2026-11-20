@@ -16,10 +16,7 @@ import { selectionAnnotationBody } from "@/lib/agent/selection-prompt";
 import { registerSelectionAddToChat } from "@/lib/agent/selection-quick-chat";
 import { isVaultSelection } from "@/lib/agent/selection-source-kind";
 import type { SelectionContext } from "@/lib/agent/selection-store";
-import {
-	chatGptPromptForSelection,
-	openChatGptSidebar,
-} from "@/lib/chatgpt/window";
+import { openChatGptQuote } from "@/lib/chatgpt/window";
 import { copyTextToClipboard } from "@/lib/core/clipboard";
 import { openSettingsWindow } from "@/lib/shell/settings-window";
 import {
@@ -130,7 +127,7 @@ export function SelectionActions({
 	const openMenuSelectionInChatGpt = useCallback(() => {
 		const current = menuRef.current;
 		if (!current) return;
-		void openChatGptSidebar(chatGptPromptForSelection(current.selection));
+		void openChatGptQuote(current.selection.text, current.selection);
 		dismissSelectionChat();
 	}, []);
 	// An embedded frame's Escape cannot reach this window's keydown listeners.

@@ -294,7 +294,7 @@
 		"bookmark": "Bookmark",
 		"moreActions": "More actions",
 		"quickChat": "Quick chat",
-		"openInChatGpt": "Open in ChatGPT",
+		"openInChatGpt": "Ask ChatGPT",
 		"chatGptClipboardUnavailable": "ChatGPT is open, but the selection could not be copied as a fallback.",
 		"addToChat": "Add to chat",
 		"translate": "Translate",

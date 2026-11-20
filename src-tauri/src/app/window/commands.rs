@@ -264,7 +264,9 @@ pub async fn chatgpt_sidebar_open(
             webview.navigate(url).map_err(|error| error.to_string())?;
         }
         webview.show().map_err(|error| error.to_string())?;
-        webview.set_focus().map_err(|error| error.to_string())?;
+        if has_query {
+            webview.set_focus().map_err(|error| error.to_string())?;
+        }
         op.finish_ok_extra("existing=true");
         return Ok(());
     }
@@ -297,9 +299,42 @@ pub async fn chatgpt_sidebar_open(
         }
     };
     webview.show().map_err(|error| error.to_string())?;
-    webview.set_focus().map_err(|error| error.to_string())?;
+    if has_query {
+        webview.set_focus().map_err(|error| error.to_string())?;
+    }
     op.finish_ok_extra("existing=false");
     Ok(())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn chatgpt_sidebar_insert_draft(
+    app: AppHandle,
+    caller: tauri::Webview,
+    draft: String,
+) -> Result<(), String> {
+    if caller.label() != "main" {
+        return Err("chatgpt_sidebar_draft_requires_main_window".into());
+    }
+    if draft.trim().is_empty() || draft.len() > 128 * 1024 {
+        return Err("invalid_chatgpt_draft".into());
+    }
+    let webview = app
+        .get_webview(CHATGPT_SIDEBAR_WEBVIEW_LABEL)
+        .ok_or_else(|| "chatgpt_sidebar_unavailable".to_string())?;
+    let draft = serde_json::to_string(&draft).map_err(|error| error.to_string())?;
+    webview.set_focus().map_err(|error| error.to_string())?;
+    webview
+        .eval(format!(
+            r##"(() => {{
+                if (location.origin !== "https://chatgpt.com") return;
+                const editor = document.querySelector("#prompt-textarea[contenteditable=true], textarea#prompt-textarea");
+                if (!editor || (editor.value ?? editor.textContent).trim() || editor.querySelector("img, [contenteditable=false]")) return;
+                editor.focus();
+                document.execCommand("insertText", false, {draft});
+            }})();"##
+        ))
+        .map_err(|error| error.to_string())
 }
 
 /// Hide the embedded ChatGPT WebView when the right rail is closed or another

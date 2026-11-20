@@ -263,6 +263,7 @@ pub fn attach_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<ta
             crate::app::terminal::commands::terminal_apps_probe,
             crate::app::window::commands::window_new,
             crate::app::window::commands::chatgpt_sidebar_open,
+            crate::app::window::commands::chatgpt_sidebar_insert_draft,
             crate::app::window::commands::chatgpt_sidebar_hide,
             crate::app::window::commands::chatgpt_sidebar_close,
             crate::app::window::commands::settings_window_open,

@@ -66,6 +66,7 @@ import {
 	runSelectionQuickChat,
 } from "@/lib/agent/selection-quick-chat";
 import { pinActiveSelection } from "@/lib/agent/selection-store";
+import { addChatGptQuote } from "@/lib/chatgpt/store";
 import {
 	listenChatGptOpenInMain,
 	openChatGptSidebar,
@@ -343,8 +344,9 @@ export default function App() {
 		if (!isTauri()) return;
 		let cancelled = false;
 		let unlisten: (() => void) | undefined;
-		void listenChatGptOpenInMain((prompt) => {
-			void openChatGptSidebar(prompt);
+		void listenChatGptOpenInMain(({ prompt, quote }) => {
+			if (quote) addChatGptQuote(quote);
+			void openChatGptSidebar(prompt ?? undefined);
 		}).then((off) => {
 			if (cancelled) off();
 			else unlisten = off;

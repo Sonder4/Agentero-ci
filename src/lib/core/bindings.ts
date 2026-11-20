@@ -801,6 +801,7 @@ export const commands = {
 	 *  deadlock Windows WebView2 when called from another WebView's IPC callback.
 	 */
 	chatgptSidebarOpen: (query: string | null, bounds: ChatGptSidebarBounds) => typedError<null, string>(__TAURI_INVOKE("chatgpt_sidebar_open", { query, bounds })),
+	chatgptSidebarInsertDraft: (draft: string) => typedError<null, string>(__TAURI_INVOKE("chatgpt_sidebar_insert_draft", { draft })),
 	/**
 	 *  Hide the embedded ChatGPT WebView when the right rail is closed or another
 	 *  rail surface is active. The WebView and its page state remain mounted.

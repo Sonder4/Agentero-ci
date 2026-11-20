@@ -1,0 +1,17 @@
+import { createStore } from "zustand/vanilla";
+import type { ChatGptSelectionSource } from "@/lib/chatgpt/window";
+
+type SelectionMenuRequest = {
+	x: number;
+	y: number;
+	text: string;
+	source?: ChatGptSelectionSource;
+};
+
+export const chatGptSelectionMenu = createStore<{
+	request: SelectionMenuRequest | null;
+}>(() => ({ request: null }));
+
+export function openChatGptSelectionMenu(request: SelectionMenuRequest): void {
+	if (request.text.trim()) chatGptSelectionMenu.setState({ request });
+}

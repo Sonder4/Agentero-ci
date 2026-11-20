@@ -36,7 +36,7 @@
 				return {};
 			}
 		};
-		const sendSelection = () => {
+		const sendSelection = (contextMenu) => {
 			if (isEditable(document.activeElement)) return;
 			let text = "";
 			let rect = null;
@@ -55,7 +55,16 @@
 					}
 				}
 			}
-			if (text && rect) {
+			if (contextMenu) {
+				if (
+					!text ||
+					!rect ||
+					contextMenu.defaultPrevented ||
+					isEditable(contextMenu.target)
+				)
+					return;
+				contextMenu.preventDefault();
+			} else if (text && rect) {
 				// Raw copy inside the frame: the app's clipboard write can be refused
 				// while focus sits in this cross-origin frame.
 				try {
@@ -69,6 +78,9 @@
 				url: location.href,
 				side: side,
 				cursorX: cursorX,
+				contextMenu: contextMenu
+					? { x: contextMenu.clientX, y: contextMenu.clientY }
+					: undefined,
 			});
 		};
 		const scheduleSelection = () => {
@@ -77,7 +89,10 @@
 				setTimeout(sendSelection, 0);
 			});
 		};
-		document.addEventListener("mouseup", scheduleSelection);
+		document.addEventListener("mouseup", (event) => {
+			if (event.button === 0) scheduleSelection();
+		});
+		document.addEventListener("contextmenu", sendSelection);
 		document.addEventListener("keyup", (event) => {
 			const key = event.key || "";
 			if (

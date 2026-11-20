@@ -6,8 +6,12 @@
 
 import { fileTreeHandle } from "@/components/shell/file-tree-registry";
 import { presentAgentComposer } from "@/lib/agent/composer-focus";
-import { pinActiveSelection } from "@/lib/agent/selection-store";
-import { openChatGptSidebar } from "@/lib/chatgpt/window";
+import { selectionChatStore } from "@/lib/agent/selection-chat-store";
+import {
+	pinActiveSelection,
+	selectionStore,
+} from "@/lib/agent/selection-store";
+import { openChatGptQuote, openChatGptSidebar } from "@/lib/chatgpt/window";
 import { openMagicWand } from "@/lib/paper/import-actions";
 import { refreshLibrary } from "@/lib/paper/library-store";
 import {
@@ -49,6 +53,9 @@ import { getActiveTab } from "@/lib/workspace/store";
 import { resolveActivePdfHandle } from "@/lib/workspace/viewer/pdf-viewer-registry";
 
 const hasVault = () => Boolean(getVaultPath());
+const selectedQuote = () =>
+	selectionChatStore.getState().draft?.selection ??
+	selectionStore.getState().active;
 
 export const paletteCommands: AppCommand[] = [
 	{
@@ -57,6 +64,16 @@ export const paletteCommands: AppCommand[] = [
 		categoryKey: "commands.catApp",
 		keywords: ["chatgpt", "openai", "chat"],
 		run: () => openChatGptSidebar(),
+	},
+	{
+		id: "chatgpt.askSelection",
+		titleKey: "commands.chatgptAskSelection",
+		categoryKey: "commands.catApp",
+		when: () => selectedQuote() != null,
+		run: () => {
+			const selection = selectedQuote();
+			if (selection) return openChatGptQuote(selection.text, selection);
+		},
 	},
 	{
 		id: "plugins.loadDevelopment",

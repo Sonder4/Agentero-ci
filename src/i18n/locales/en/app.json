@@ -24,6 +24,15 @@
 		"noVault": "Open a vault to search",
 		"empty": "Type to search papers, notes, and tables"
 	},
+	"chatgptQuote": {
+		"selection": "Selected excerpts ({{count}})",
+		"remove": "Remove excerpt",
+		"question": "Add a question",
+		"insert": "Fill ChatGPT draft",
+		"insertHint": "Fill the empty input in the current ChatGPT chat",
+		"copy": "Copy draft",
+		"copyFailed": "Could not copy the ChatGPT draft."
+	},
 	"commands": {
 		"catApp": "App",
 		"catView": "View",
@@ -34,6 +43,7 @@
 		"catEditor": "Editor",
 		"toggleMarkdownSource": "Toggle Markdown source",
 		"chatgptOpen": "Open ChatGPT",
+		"chatgptAskSelection": "Ask ChatGPT about selection",
 		"settingsOpen": "Open Settings",
 		"settingsClose": "Close Settings",
 		"vaultOpen": "Open Vault…",

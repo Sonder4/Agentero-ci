@@ -162,7 +162,9 @@ export const PdfCardStack = memo(function PdfCardStack({
 					onNote={selectionMenu.onNote}
 					showHighlight={selectionMenu.showHighlight}
 					showTranslate={selectionMenu.showTranslate}
-					selectionText={selectionMenu.state.anchor.quote}
+					selectionText={
+						selectionMenu.state.copyText ?? selectionMenu.state.anchor.quote
+					}
 					source={{
 						sourcePath: paperPath,
 						sourceTitle: ask.paperTitle,

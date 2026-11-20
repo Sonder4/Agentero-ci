@@ -18,8 +18,10 @@ import {
 } from "@/lib/agent/selection-side";
 import { captureTextAnchor } from "@/lib/agent/selection-source";
 import type { SelectionContext } from "@/lib/agent/selection-store";
+import { openChatGptSelectionMenu } from "@/lib/chatgpt/selection-menu";
 import { copyTextToClipboard } from "@/lib/core/clipboard";
 import { resolveMarkdownSelectionLinesForPath } from "@/lib/markdown/markdown-selection-lines-registry";
+import { ChatGptSelectionContextMenu } from "./chatgpt-selection-context-menu";
 import { SelectionActions } from "./selection-actions";
 
 const SURFACE = "[data-selection-chat-source]";
@@ -164,6 +166,40 @@ export function SelectionChatPopover() {
 				return;
 			dismissSelectionChat();
 		};
+		const onContextMenu = (event: MouseEvent) => {
+			if (event.defaultPrevented || !(event.target instanceof Element)) return;
+			const source = surfaceOf(event.target);
+			const selection = window.getSelection();
+			if (
+				!source ||
+				!selection ||
+				selection.isCollapsed ||
+				surfaceOf(selection.anchorNode) !== source ||
+				surfaceOf(selection.focusNode) !== source ||
+				event.target.closest("input, textarea, select, [data-selection-ui]")
+			)
+				return;
+			const text = selection.toString().trim();
+			if (!text) return;
+			event.preventDefault();
+			const rect = selection.getRangeAt(0).getBoundingClientRect();
+			const sourcePath = source.dataset.selectionChatSource;
+			const lines = sourcePath
+				? resolveMarkdownSelectionLinesForPath(sourcePath)
+				: null;
+			openChatGptSelectionMenu({
+				x: event.clientX || rect.left,
+				y: event.clientY || rect.bottom,
+				text,
+				source: {
+					sourcePath,
+					sourceUrl: source.dataset.selectionChatUrl,
+					sourceTitle: source.dataset.selectionChatTitle,
+					lineFrom: lines?.lineFrom,
+					lineTo: lines?.lineTo,
+				},
+			});
+		};
 		const onScroll = (event: Event) => {
 			if (
 				event.target instanceof Node &&
@@ -190,6 +226,7 @@ export function SelectionChatPopover() {
 		document.addEventListener("pointerdown", onDown, true);
 		document.addEventListener("pointerup", scheduleCapture);
 		document.addEventListener("keyup", scheduleCapture);
+		document.addEventListener("contextmenu", onContextMenu);
 		// Capture: editors can consume Escape before it bubbles, but they must not
 		// leave the app-owned toolbar stranded.
 		document.addEventListener("keydown", onEscape, true);
@@ -200,6 +237,7 @@ export function SelectionChatPopover() {
 			document.removeEventListener("pointerdown", onDown, true);
 			document.removeEventListener("pointerup", scheduleCapture);
 			document.removeEventListener("keyup", scheduleCapture);
+			document.removeEventListener("contextmenu", onContextMenu);
 			document.removeEventListener("keydown", onEscape, true);
 			document.removeEventListener("selectionchange", onSelectionChange);
 			window.removeEventListener("scroll", onScroll, true);
@@ -209,6 +247,7 @@ export function SelectionChatPopover() {
 	return createPortal(
 		<div ref={popoverRef}>
 			<SelectionActions draft={draft} />
+			<ChatGptSelectionContextMenu />
 		</div>,
 		document.body,
 	);

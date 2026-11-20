@@ -1,4 +1,4 @@
-import { Bot } from "lucide-react";
+import { Bot, ClipboardCopy, X } from "lucide-react";
 import {
 	useCallback,
 	useEffect,
@@ -9,9 +9,16 @@ import {
 import { useTranslation } from "react-i18next";
 import { ChatGPTIcon } from "@/components/agent/open-in-chat";
 import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 import { useChatGptSidebarStore } from "@/hooks/use-app-stores";
-import { consumeChatGptSidebarRequest } from "@/lib/chatgpt/store";
+import {
+	chatGptSidebarStore,
+	consumeChatGptSidebarRequest,
+	removeChatGptQuote,
+} from "@/lib/chatgpt/store";
+import { chatGptQuoteDraft } from "@/lib/chatgpt/window";
 import { commands } from "@/lib/core/bindings";
+import { copyTextToClipboard } from "@/lib/core/clipboard";
 import { errorText } from "@/lib/core/error";
 import { notifyError } from "@/lib/core/notify";
 
@@ -54,14 +61,35 @@ export function ChatGptSidebarPanel({
 }) {
 	const { t } = useTranslation("app");
 	const requestId = useChatGptSidebarStore((state) => state.requestId);
-	const pendingPrompt = useChatGptSidebarStore((state) => state.pendingPrompt);
-	const pendingPromptRef = useRef(pendingPrompt);
-	pendingPromptRef.current = pendingPrompt;
+	const quotes = useChatGptSidebarStore((state) => state.quotes);
+	const question = useChatGptSidebarStore((state) => state.question);
 	const slotRef = useRef<HTMLDivElement>(null);
 	const frameRef = useRef<number | null>(null);
 	const [bounds, setBounds] = useState<NativeBounds | null>(null);
-	const openingRef = useRef(false);
+	const pendingUpdate = useRef(Promise.resolve());
 	const handledRequestRef = useRef(0);
+	const [inserting, setInserting] = useState(false);
+
+	const insertDraft = async () => {
+		setInserting(true);
+		try {
+			await pendingUpdate.current;
+			const result = await commands.chatgptSidebarInsertDraft(
+				chatGptQuoteDraft(quotes, question),
+			);
+			if (result.status === "error") notifyError(result.error);
+		} catch (error) {
+			notifyError(errorText(error));
+		} finally {
+			setInserting(false);
+		}
+	};
+
+	const copyDraft = async () => {
+		if (!(await copyTextToClipboard(chatGptQuoteDraft(quotes, question)))) {
+			notifyError(t("chatgptQuote.copyFailed"));
+		}
+	};
 
 	const measure = useCallback(() => {
 		const slot = slotRef.current;
@@ -99,30 +127,35 @@ export function ChatGptSidebarPanel({
 	}, [active, measure, scheduleMeasure]);
 
 	useEffect(() => {
-		if (!active) {
-			void commands.chatgptSidebarHide();
-			return;
-		}
-		if (!bounds || openingRef.current) return;
-		const hasPendingRequest = requestId > handledRequestRef.current;
-		const query = hasPendingRequest ? pendingPromptRef.current : null;
-		openingRef.current = true;
-		void commands
-			.chatgptSidebarOpen(query, bounds)
-			.then((result) => {
+		let cancelled = false;
+		pendingUpdate.current = pendingUpdate.current
+			.then(async () => {
+				if (cancelled) return;
+				if (!active) {
+					await commands.chatgptSidebarHide();
+					return;
+				}
+				if (!bounds) return;
+				const hasRequest = requestId > handledRequestRef.current;
+				const query = hasRequest
+					? chatGptSidebarStore.getState().pendingPrompt
+					: null;
+				const result = await commands.chatgptSidebarOpen(query, bounds);
 				if (result.status === "error") {
 					notifyError(result.error);
 					return;
 				}
-				if (hasPendingRequest) {
+				if (hasRequest) {
 					handledRequestRef.current = requestId;
 					consumeChatGptSidebarRequest(requestId);
 				}
 			})
-			.catch((error) => notifyError(errorText(error)))
-			.finally(() => {
-				openingRef.current = false;
+			.catch((error) => {
+				notifyError(errorText(error));
 			});
+		return () => {
+			cancelled = true;
+		};
 	}, [active, bounds, requestId]);
 
 	useEffect(() => {
@@ -151,6 +184,85 @@ export function ChatGptSidebarPanel({
 					<Bot className="size-4" />
 				</Button>
 			</div>
+			{quotes.length > 0 && (
+				<section
+					className="shrink-0 space-y-2 border-b p-3"
+					aria-label={t("chatgptQuote.selection", { count: quotes.length })}
+				>
+					<div className="text-xs text-muted-foreground">
+						{t("chatgptQuote.selection", { count: quotes.length })}
+					</div>
+					<div className="max-h-28 space-y-1 overflow-auto">
+						{quotes.map((quote) => (
+							<div
+								key={quote.id}
+								className="flex items-start gap-1 rounded-md bg-muted px-2 py-1"
+							>
+								<details className="min-w-0 flex-1 text-xs">
+									<summary
+										className="cursor-pointer truncate"
+										title={quote.source}
+									>
+										{quote.text}
+									</summary>
+									{quote.source && (
+										<div className="mt-1 break-all text-muted-foreground">
+											{quote.source}
+										</div>
+									)}
+									<blockquote className="mt-1 wrap-anywhere whitespace-pre-wrap">
+										{quote.text}
+									</blockquote>
+								</details>
+								<Button
+									type="button"
+									variant="ghost"
+									size="icon-xs"
+									aria-label={t("chatgptQuote.remove")}
+									title={t("chatgptQuote.remove")}
+									onClick={() => removeChatGptQuote(quote.id)}
+								>
+									<X className="size-3" />
+								</Button>
+							</div>
+						))}
+					</div>
+					<Textarea
+						data-ui-action="chatgpt.quote.question"
+						className="min-h-12 resize-y"
+						rows={2}
+						aria-label={t("chatgptQuote.question")}
+						placeholder={t("chatgptQuote.question")}
+						value={question}
+						onChange={(event) =>
+							chatGptSidebarStore.setState({ question: event.target.value })
+						}
+					/>
+					<div className="flex justify-end gap-1">
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-sm"
+							data-ui-action="chatgpt.quote.copy"
+							aria-label={t("chatgptQuote.copy")}
+							title={t("chatgptQuote.copy")}
+							onClick={() => void copyDraft()}
+						>
+							<ClipboardCopy className="size-4" />
+						</Button>
+						<Button
+							type="button"
+							size="sm"
+							data-ui-action="chatgpt.quote.insert"
+							title={t("chatgptQuote.insertHint")}
+							disabled={inserting || !bounds}
+							onClick={() => void insertDraft()}
+						>
+							{t("chatgptQuote.insert")}
+						</Button>
+					</div>
+				</section>
+			)}
 			<div
 				ref={slotRef}
 				data-chatgpt-native-slot

@@ -10,6 +10,7 @@ import {
 	runSelectionAddToChat,
 	runSelectionQuickChat,
 } from "@/lib/agent/selection-quick-chat";
+import { openChatGptSelectionMenu } from "@/lib/chatgpt/selection-menu";
 import { copyTextToClipboard } from "@/lib/core/clipboard";
 import { openExternalUrl } from "@/lib/core/open-external";
 import { getPlatformOS } from "@/lib/core/tauri";
@@ -122,6 +123,23 @@ export function useWebViewSelection({
 					}
 				} catch {
 					/* sandboxed srcdoc uses the supplied public URL */
+				}
+				if (msg.contextMenu) {
+					const { x, y } = msg.contextMenu;
+					if (
+						x < 0 ||
+						y < 0 ||
+						x * scale > bounds.width ||
+						y * scale > bounds.height
+					)
+						return;
+					openChatGptSelectionMenu({
+						x: bounds.left + x * scale,
+						y: bounds.top + y * scale,
+						text: msg.text,
+						source: { sourceUrl: url, sourceTitle: title },
+					});
+					return;
 				}
 				if (selectionSource !== url) closeSelectionSource(selectionSource);
 				selectionSource = url;

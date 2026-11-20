@@ -15,6 +15,7 @@ import {
 	clearActiveSelection,
 	publishSelection,
 } from "@/lib/agent/selection-store";
+import { openChatGptSelectionMenu } from "@/lib/chatgpt/selection-menu";
 import { basenameOf } from "@/lib/core/path";
 
 /** Last non-empty range. A toolbar click collapses the live selection first. */
@@ -209,11 +210,39 @@ export function useTextEditorSelection({
 				return;
 			armRef.current(view);
 		};
+		const onContextMenu = (event: MouseEvent) => {
+			const view = viewRef.current;
+			if (
+				event.defaultPrevented ||
+				!activeRef.current ||
+				!view ||
+				!(event.target instanceof Node) ||
+				!view.contentDOM.contains(event.target)
+			)
+				return;
+			const selection = view.state.selection.main;
+			if (selection.empty) return;
+			const text = view.state.sliceDoc(selection.from, selection.to);
+			const screen = selectionMenuScreen(view);
+			if (!text.trim() || !screen) return;
+			event.preventDefault();
+			openChatGptSelectionMenu({
+				text,
+				x: event.clientX || screen.x,
+				y: event.clientY || screen.y,
+				source: {
+					sourcePath: pathRef.current,
+					...selectionLines(view.state.doc, selection),
+				},
+			});
+		};
 		document.addEventListener("mousedown", onDown, true);
 		document.addEventListener("mouseup", onUp, true);
+		document.addEventListener("contextmenu", onContextMenu);
 		return () => {
 			document.removeEventListener("mousedown", onDown, true);
 			document.removeEventListener("mouseup", onUp, true);
+			document.removeEventListener("contextmenu", onContextMenu);
 		};
 	}, [viewRef]);
 

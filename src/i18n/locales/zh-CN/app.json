@@ -24,6 +24,15 @@
 		"noVault": "请先打开知识库再搜索",
 		"empty": "输入以搜索论文、笔记和表格"
 	},
+	"chatgptQuote": {
+		"selection": "已选 {{count}} 项",
+		"remove": "移除引用",
+		"question": "补充问题",
+		"insert": "填入 ChatGPT 草稿",
+		"insertHint": "填入当前 ChatGPT 对话的空输入框",
+		"copy": "复制草稿",
+		"copyFailed": "无法复制 ChatGPT 草稿。"
+	},
 	"commands": {
 		"catApp": "应用",
 		"catView": "视图",
@@ -34,6 +43,7 @@
 		"catEditor": "编辑器",
 		"toggleMarkdownSource": "切换 Markdown 源码",
 		"chatgptOpen": "打开 ChatGPT",
+		"chatgptAskSelection": "在 ChatGPT 中询问选区",
 		"settingsOpen": "打开设置",
 		"settingsClose": "关闭设置",
 		"vaultOpen": "打开 Vault…",

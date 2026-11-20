@@ -15,8 +15,7 @@ import {
 import type { ScreenPoint } from "@/components/viewer/pdf/types";
 import {
 	type ChatGptSelectionSource,
-	chatGptPromptForText,
-	openChatGptSidebar,
+	openChatGptQuote,
 } from "@/lib/chatgpt/window";
 import {
 	type MarkupShapes,
@@ -142,7 +141,7 @@ export function SelectionMenu({
 			label: t("selection.openInChatGpt"),
 			icon: <ChatGPTIcon className="size-3.5" />,
 			onSelect: () => {
-				void openChatGptSidebar(chatGptPromptForText(selectionText, source));
+				void openChatGptQuote(selectionText, source);
 			},
 		});
 	}

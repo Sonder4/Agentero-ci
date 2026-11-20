@@ -56,6 +56,7 @@ import {
 	clearActiveSelection,
 	publishSelection,
 } from "@/lib/agent/selection-store";
+import { openChatGptSelectionMenu } from "@/lib/chatgpt/selection-menu";
 import { copyTextToClipboard } from "@/lib/core/clipboard";
 import { translationHitsFromRange } from "@/lib/pdf/layout/layout-sentence-selection";
 import { getLayoutDocumentResult } from "@/lib/pdf/layout/store";
@@ -322,7 +323,16 @@ export function usePdfTextSelection({
 
 	useEffect(() => {
 		if (!selectionMenu) return;
+		const host = hostRef.current;
+		const isPdfPage = (target: EventTarget | null) =>
+			target instanceof Element &&
+			target.closest("[data-pdf-root]") === host &&
+			target.closest(
+				"[data-embed-pdf-page], .pdf-translate-selection, [data-reflow-selection]",
+			) &&
+			!target.closest("input, textarea, select, [contenteditable=true]");
 		const onPointerDown = (event: PointerEvent) => {
+			if (event.button === 2 && isPdfPage(event.target)) return;
 			if (
 				event.target instanceof Element &&
 				event.target.closest(
@@ -336,13 +346,30 @@ export function usePdfTextSelection({
 		const onKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") closeSelectionMenu();
 		};
+		const onContextMenu = (event: MouseEvent) => {
+			const text = selectionMenu.copyText ?? selectionMenu.anchor.quote;
+			if (event.defaultPrevented || !text?.trim() || !isPdfPage(event.target))
+				return;
+			event.preventDefault();
+			openChatGptSelectionMenu({
+				x: event.clientX || selectionMenu.screen.x,
+				y: event.clientY || selectionMenu.screen.y,
+				text,
+				source: {
+					sourcePath: paperRelPath ?? paperAbsPath ?? undefined,
+					page: selectionMenu.anchor.page,
+				},
+			});
+		};
 		document.addEventListener("pointerdown", onPointerDown, true);
 		window.addEventListener("keydown", onKeyDown, true);
+		host?.addEventListener("contextmenu", onContextMenu);
 		return () => {
 			document.removeEventListener("pointerdown", onPointerDown, true);
 			window.removeEventListener("keydown", onKeyDown, true);
+			host?.removeEventListener("contextmenu", onContextMenu);
 		};
-	}, [selectionMenu, closeSelectionMenu]);
+	}, [selectionMenu, closeSelectionMenu, hostRef, paperAbsPath, paperRelPath]);
 
 	// Dockview keeps hidden tabs mounted. Drop their selection, including any
 	// pending text extraction, as soon as this viewer loses focus or unmounts.

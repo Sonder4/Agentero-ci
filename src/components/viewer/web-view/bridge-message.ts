@@ -34,6 +34,7 @@ export type WebBridgeMessage =
 			side?: SelectionSide;
 			/** Frame-viewport x of the gesture endpoint. */
 			cursorX?: number;
+			contextMenu?: { x: number; y: number };
 	  }
 	| { type: "scroll" }
 	| { type: "ready" }
@@ -69,6 +70,15 @@ export function parseWebBridgeMessage(data: unknown): WebBridgeMessage | null {
 				data.side === "above" || data.side === "below" ? data.side : undefined;
 			const cursorX =
 				typeof data.cursorX === "number" ? data.cursorX : undefined;
+			const point = data.contextMenu;
+			const contextMenu =
+				isRecord(point) &&
+				typeof point.x === "number" &&
+				Number.isFinite(point.x) &&
+				typeof point.y === "number" &&
+				Number.isFinite(point.y)
+					? { x: point.x, y: point.y }
+					: undefined;
 			return {
 				type: "selection",
 				text: data.text,
@@ -76,6 +86,7 @@ export function parseWebBridgeMessage(data: unknown): WebBridgeMessage | null {
 				url: data.url,
 				side,
 				cursorX,
+				...(contextMenu ? { contextMenu } : {}),
 			};
 		}
 		case "ready":
