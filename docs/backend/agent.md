@@ -294,16 +294,7 @@ spawn 用户配置的 agent
 之前都会先 flush，保证顺序与文本无损。`agent:tool` 的 `input`/`output` 超过
 32KB 时截断为「头部 + truncated 标记」（前端只做预览渲染）。
 
-ACP `terminal` 能力：Host 在 initialize 时声明 `terminal: true`，并本地实现
-`terminal/create`、`terminal/output`、`terminal/release`、`terminal/wait_for_exit`、
-`terminal/kill`。每个 ACP 连接持有独立的 `AcpTerminalManager`，按 `TerminalId`
-管理子进程；每个 terminal 由单独任务独占 `Child`，`wait_for_exit` 不占 manager
-锁，`kill` / `release` 通过控制通道保持可用。ACP 消息分发本身是串行的，因此
-wait / kill / release 在分发时先获取或移除句柄，再经 `connection.spawn` 完成响应，
-避免等待退出时堵住同连接后续请求。`terminal/output` 只快照当前缓冲区，
-不会等待进程退出；输出按 `outputByteLimit` 从头部截断并保证 UTF-8 字符边界。该能力
-让 Kimi Code 等需要执行 shell 命令的 Agent 可以在 Vault 工作目录下运行命令并
-读取结果。
+ACP `terminal` 能力（Kimi Code 等 Agent 借它执行 shell 命令）见下文「ACP 终端（terminal/*）」。
 
 run / warm / list / load / probe 共用 `agentero_acp_builder!`（name + terminal
 handler）；各入口自行挂 notification / permission 回调。
@@ -375,6 +366,28 @@ turn 未产生回复（如被中断）时会往 transcript 里拼接合成 assis
 甚至完全为空（#338）。Host 在单条 ACP 连接内走完 cursor，按 `sessionId` 去重，
 并受三重封顶保护：5s 预算、200 页、500 条；因未走完而中断时把 cursor 一并返回。
 cursor 不再推进（`next == prev`）时视为走完，避免死循环。
+
+## ACP 终端（terminal/*）
+
+实现在 `src-tauri/src/features/agent/acp/terminal.rs`。Host 在 `initialize` 声明 `terminal: true`（`acp/client.rs` 的 `client_initialize_request`），本地实现 `terminal/create`、`terminal/output`、`terminal/wait_for_exit`、`terminal/kill`、`terminal/release`。每条 ACP 连接由 `acp_terminals` 建一个 `AcpTerminalManager`，按 UUID `TerminalId` 管理。run / warm / 历史查询的 manager 带 Vault cwd，probe 不带。
+
+- **命令解析**（`command_and_args`）：
+  - 有 `args`：`command` 经 `resolve_command` 解析成绝对路径后直接 spawn，解析不到就用原名。
+  - 没有 `args`，但 `command` 本身能解析成可执行文件：直接 spawn。
+  - 其余情况把整串 `command` 当 shell 源码执行：Windows `powershell.exe -NoLogo -NoProfile -NonInteractive -Command <command>`，Unix `/bin/sh -c <command>`。不经 `cmd.exe`，也不加载用户 profile。
+- **cwd**：请求里的 `cwd` 优先，原样传给 spawn，不归一化，也不检查是否在 Vault 内。请求没给时用 manager 的默认 cwd，即会话的 Vault 根（`agent_spawn_cwd()` 的结果）。probe 连接没有默认 cwd，继承 Host 进程 cwd。目录不存在时 spawn 失败，返回 internal error。
+- **env**：继承 Host 环境，叠加请求里的 `env`，最后用 `sanitize_appimage_env` 去掉 AppImage 的 loader 变量。这一步只在 AppImage 内运行时生效（#1002）。
+- **输出**：stdout 和 stderr 由两个 reader 按 4 KiB 块写入同一缓冲区，按到达顺序交错，不区分流。上限取请求的 `outputByteLimit`，缺省 1 MiB。超限时从头部丢弃，对齐到 UTF-8 字符边界，并置 `truncated = true`。`terminal/output` 只快照当前缓冲区，以 lossy UTF-8 解码，不等待进程退出；进程已退出时附带 `exitStatus`。
+- **wait_for_exit**：每个 terminal 由一个独立的控制任务独占 `Child`。进程退出后，先给两个 reader 各最多 250ms 读完剩余输出（子孙进程仍持有管道时到时即 abort），然后才发布退出状态。`exitCode` 取自 `ExitStatus::code()`，进程被信号杀死时为空；`signal` 不填。ACP 分发是串行的，所以 wait / kill / release 在分发时先拿到句柄，再经 `connection.spawn` 异步响应；等待退出时不会堵住同一连接的其它请求。
+- **kill**：经控制通道调用 `start_kill` 并等待回收。terminal 本身保留，输出和退出状态仍可读。进程已经退出时直接返回成功。
+- **release**：先从 manager 移除，再 kill 仍在运行的进程；之后再用这个 id 会得到 `terminal not found`。连接结束、manager 被 drop 时，控制通道关闭，控制任务同样 kill 并回收仍在运行的命令，`kill_on_drop` 作兜底。
+- 单条命令没有超时，何时结束由 Agent 的 kill / release 决定。
+
+### 已知限制
+
+- 用普通 `tokio::process::Command` 启动，没有经过 `agentero-core::process::ProcessTree`。`kill`、`release` 和连接关闭都只结束直接子进程（shell 或可执行文件本身），Unix 上也不建进程组。shell 拉起的孙进程会继续运行，例如 `npm run dev` 启动的 `node`。
+- Windows 上 spawn 没有设 `CREATE_NO_WINDOW`。release 构建是 GUI 子系统，每次 `terminal/create` 都会闪一下控制台窗口。
+- 截断时要求剩余字节整体是合法 UTF-8。输出里含非 UTF-8 字节（如 Windows 本地代码页）时，一旦截断，会一直丢到最后一个非法字节之后，剩下的输出可能很少甚至为空。
 
 ## 命令（摘要）
 

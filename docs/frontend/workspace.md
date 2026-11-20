@@ -45,6 +45,17 @@ Library 始终位于所在标签条的第一位：禁止拖动 Library 及包含
 
 启动恢复只 hydrate 每个 Dockview group 当前可见的 panel；隐藏标签在首次切换到前台时再读取资源。 `papers/` 下的占位标签统一等待文件树加载完成后再 hydrate，不按扩展名猜测文件或目录，避免带点的论文 ID（如 `2606.04046`）被误归属到父级分类目录并触发错误的引用解析；其它笔记与虚拟标签可继续加载。恢复出的占位 tab 直接用 params 里的 title 显示（论文名），无需等资源加载；未携带 title 的旧布局回退为文件夹名，激活后由资源加载刷新。PDF 保活 LRU 是 2，当前可见的 PDF 面板另计，本地 PDF `ArrayBuffer` 离开保留集合后释放，避免多标签工作区重启时并发加载全部 PDF 并长期占用 WebContent 内存；重新 hydrate 既有 PDF tab 时只刷新资源，不因一次 PDF 探测失败降级成 Markdown 空编辑器；同一保护（`patchFromTabResources`）覆盖 ⇧⌘T 重开与文档弹出窗。资源侧论文正文只产出 pdf / html（`paperBodyMode`）：探测全空且 catalog bundle / 元数据也落空时先延迟重试一次（启动时 Host catalog 或 fs scope 未就绪的竞态），仍无资源则停在 PDF「暂无论文」空态，绝不渲染空 Markdown 编辑器；paper 文件夹内的子目录按 scoped library 打开，同样不进编辑器。论文目录里的非 PDF 不再预读主 PDF：正文先看 bundle 的 `pdfPath` 或 HTML 是否存在，只有最终资源是 PDF 时才读字节。同一个 `blob:` URL 在最后一个视图关闭时才 revoke。Markdown 编辑器（含 NOTES）与纯文本编辑器同样保活：LRU 是 4，当前可见的编辑器另计，最近使用的编辑器保持挂载，切换标签不再重建 Plate / CodeMirror；离开保留集合的编辑器卸载为占位，切回时重新反序列化，卸载时未落盘的编辑会照常 flush。
 
+### 异步加载结果的落地规则
+
+`loadTabResources`、catalog 查询（`listPapers`、`catalogListProperties`）等异步结果返回时，界面可能已经切换 Vault 或关闭了视图。新增或修改此类代码时遵守：
+
+1. **发起前记下身份**：当前 Vault 路径与 `vaultLoadGeneration()`（`src/lib/workspace/identity.ts`，读取 vault store 的 `treeLoadGeneration`，只在 `activateVault` 递增）；面向某个视图的加载再记下视图 id 与 `params.path`。
+2. **落地前复核**：代数或 Vault 路径变化即丢弃；视图仍需存在且路径未变（hydrate 路径的写法：`getTabs().find((t) => t.id === id)?.path === path`）。`catch` 与 `finally` 分支同样复核，不要在失败时清空或改写**当前** Vault 的状态。
+3. **丢弃即释放**：被丢弃的结果若带有 `blob:` 来源，调用 `revokeTabMediaSources(res)`（`tabs/resources.ts`）释放本次取得的租约。拆分 / 译文等复制视图用 `retainViewerSource` 增加引用，关闭时 `revokePdfViewerSource` 递减（`src/lib/paper/media.ts`）。
+4. **副作用放在复核之后**：打开 NOTES、`track()` 统计与 `paper:opened` 等事件都只在复核通过后执行。
+
+已知未完全遵守的位置：`refreshLibrary` / 自定义属性加载未做 Vault 复核；`openFile` 在视图关闭后仍会打开 NOTES；部分丢弃分支未释放图片 `blob:` 租约。
+
 ## 纯文本编辑器（CodeMirror 兜底）
 
 `papers/` 之外的文本文件在专用查看器（PDF / HTML / 图片 / Markdown）都不命中时，落入 CodeMirror 6 纯文本编辑器（`text` 模式），承担「未知格式兜底查看器」的角色；`papers/` 内部保持原 Markdown 行为不变（paper 域文件不降级为原始文本缓冲）。

@@ -40,6 +40,8 @@ shadcn/ui primitives → agent/ 应用组合与 rendering/ 科研渲染
 ## 面板行为
 
 - **弹出到功能窗**：Agent 面板卸载不退订事件，也不拒绝尚未回答的权限。主窗口把 Agent 交到新开的功能窗时，只在功能窗 ready 之后发一次 `agent:session-handoff` 快照。交接是这次快照被 ack 之后才 rebind。聊天行是第一帧；未发送的 composer（文本、mention、图片、视觉引用）、冻结的队列，以及尚未回答的 permission / elicitation / ask-user request id 都在这份 payload 里，因为两个 webview 不共用 localStorage。功能窗应用快照后回 ack，源窗口收到 ack 才把正在跑的 Host 事件改发到功能窗；在那之前事件仍发给源窗口。功能窗已经开着时不发送、也不用这份快照盖掉它。没收到 ack 就不算交接完成。
+  - **失败路径**：ack 到了但 `agentRebindEventWindow` reject 时，`beginAgentSessionHandoff`（`src/lib/shell/workspace-broadcast.ts`）只把 phase 退回 `snapshot-sent`，不弹 Toast，也不主动重试。功能窗对每份快照只 ack 一次（`applyAgentSessionHandoffOnce`），因此 Host 事件实际一直留在源窗口。
+  - **监听泄漏**：功能窗始终没发 ready 或 ack 时，交接监听会留到本次会话结束。`openFeatureWindow`（`src/lib/shell/feature-window.ts`）只在 `featureWindowOpen` 返回错误或抛异常时调用 stop，监听只有在 rebind 成功后才会自行退订。
 
 - **Dsh 重启历史**：官方 ACP 桥仅支持 `session/resume` 时，本机历史从
   Dsh 标准落盘日志只读恢复；后台标题补全和点击历史项共用该路径。已有日志
