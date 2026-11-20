@@ -39,7 +39,7 @@ import {
 	syncTabSeedsForPath,
 	tabIsPaperNotes,
 } from "./tabs";
-import { isHtmlPath, viewerModeSpec } from "./viewer";
+import { isHtmlPath, isPdfPath, viewerModeSpec } from "./viewer";
 
 /** Collect vault-relative paths with unsaved edits (rename preflight). */
 export function dirtyVaultPaths(root: string): string[] {
@@ -228,20 +228,24 @@ export async function applyDiskChange(
 		kind,
 		owners: openTabs.filter((tab) => kind.owns(tab, norm)),
 	}));
-	const pdfOwners = openTabs.filter(
-		(t) =>
-			normalizeTabPath(t.path) === norm &&
-			viewerModeSpec(t.mode).resource === "pdf",
-	);
+	// A paper pane uses the paper directory as its tab path. Directory
+	// notifications must not be passed to the PDF byte reader.
+	const hasPdfOwners =
+		isPdfPath(absPath) &&
+		openTabs.some(
+			(tab) =>
+				normalizeTabPath(tab.path) === norm &&
+				viewerModeSpec(tab.mode).resource === "pdf",
+		);
 	const hasTextOwners = kindOwners.some((entry) => entry.owners.length > 0);
-	if (!hasTextOwners && !pdfOwners.length) return;
+	if (!hasTextOwners && !hasPdfOwners) return;
 	// PDF panes reload from bytes: one read feeds every matching pane (source
 	// tab + translation split); the fresh ArrayBuffer identity is the mounted
 	// viewer's reload signal. Panes still on the compile shimmer are skipped
 	// inside refreshPdfTab — the compile flow fills them when the run lands.
 	// A bookmark write already updated the in-memory outline. Reloading the
 	// buffer here remounts EmbedPDF and flashes the page.
-	if (pdfOwners.length && !isRecentBookmarkWrite(absPath)) {
+	if (hasPdfOwners && !isRecentBookmarkWrite(absPath)) {
 		const bytes = await localFileToArrayBuffer(absPath);
 		if (bytes) sink.updateTabs((prev) => refreshPdfTab(prev, absPath, bytes));
 	}
