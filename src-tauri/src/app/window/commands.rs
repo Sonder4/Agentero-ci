@@ -415,9 +415,16 @@ async fn eval_chatgpt_quote(
     request: &serde_json::Value,
 ) -> Option<String> {
     let script = include_str!("chatgpt-quote-attachment.js");
+    eval_chatgpt_script(webview, format!("{script}({request});")).await
+}
+
+pub(super) async fn eval_chatgpt_script<R: tauri::Runtime, T: serde::de::DeserializeOwned>(
+    webview: &tauri::Webview<R>,
+    script: String,
+) -> Option<T> {
     let (send, mut receive) = tokio::sync::mpsc::channel(1);
     webview
-        .eval_with_callback(format!("{script}({request});"), move |result| {
+        .eval_with_callback(script, move |result| {
             let _ = send.try_send(result);
         })
         .ok()?;

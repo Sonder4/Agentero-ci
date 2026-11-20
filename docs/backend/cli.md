@@ -644,6 +644,37 @@ agentero ui click chatgpt.quote.attach
 - 控件范围覆盖 Agentero 渲染的界面。操作系统标题栏、系统文件对话框、网页 iframe 与 ChatGPT 子 WebView 由各自的宿主接收输入。浏览器原生文本编辑、焦点切换等默认行为仍需要实际按键。
 - 在广场代理网页或 HTML 论文阅读器中，`chatgpt.page.ask` 点击工具栏的「向 ChatGPT 询问此页」。网页正文菜单已打开时，`chatgpt.page.contextAsk` 执行同一动作。添加后可用 `ui actions --json` 确认引用控件出现。`chatgpt.quote.attach` 将对应摘录上传为 Markdown 附件，`chatgpt.quote.copy` 和 `chatgpt.quote.remove` 操作本地预览。问题在 ChatGPT 网页输入框中填写。
 
+### 管理 ChatGPT 网页会话与项目
+
+`agentero ui chatgpt` 在已打开、已登录的右侧 ChatGPT 网页执行操作。项目使用 `projects` 返回的 `target`，网页提供项目链接时为相对路径，否则为 `name:<标题>`。会话写操作使用列表返回的 `path`，移入项目后使用移动命令返回的新路径。网页打开后可能把项目名称加入地址，菜单仍以列表中的链接定位会话。同名项目请使用具体路径。
+
+```bash
+agentero ui command chatgpt.open
+agentero ui chatgpt projects --json
+agentero ui chatgpt recent --json
+agentero ui chatgpt project-chats --target "$project" --json
+agentero ui chatgpt new-chat
+agentero ui chatgpt send --value "Reply with QA-OK." --json
+agentero ui chatgpt rename-chat --target "$chat" --value test
+agentero ui chatgpt pin-chat --target "$chat"
+agentero ui chatgpt share-chat --target "$chat"
+agentero ui chatgpt create-project --value "Agentero QA"
+agentero ui chatgpt rename-project --target "$project" --value "Agentero QA renamed"
+agentero ui chatgpt project-instructions --target "$project" --value "Keep answers short."
+agentero ui chatgpt project-source --target "$project" --file source.txt
+agentero ui chatgpt project-sources --target "$project" --json
+agentero ui chatgpt move-chat --target "$chat" --value "$project"
+agentero ui chatgpt export --target "$moved_chat" --out test.json
+agentero ui chatgpt archive-chat --target "$moved_chat"
+```
+
+- `projects` 返回项目标题、可操作目标和置顶状态。会话列表以当前网页已加载的项目与最近区域为准。
+- `send` 把提供的文字发送到空白输入区。向已有聊天发送时，使用 `--target` 指定当前会话。`--replace-draft` 仅在输入区与给定草稿完全相同时替换它，并且要求没有附件。等待回复结束再导出。
+- `share-chat` 会创建网页分享链接。项目内的聊天可能受项目分享权限限制。
+- `project-source` 上传调用者指定的本地文件，单次上限 16 MiB。网页账号的文件类型和配额仍适用。
+- `export` 输出当前分支已渲染的用户和助手消息，包含纯文本、消息 ID 和图片替代文字。读取范围由当前网页渲染内容决定，原始 Markdown、图片文件和其他分支不在此次导出范围内。用 `--out` 创建新 JSON 文件。CLI 单次回应上限 1 MiB。
+- `status` 显示当前网页路径和控件诊断信息。需要检查草稿时可以显式传入 `--value draft`。`open --target <path>` 打开当前账号的项目或会话。若菜单标签或结构随网页升级发生变化，命令会返回错误。
+
 ### 系统外壳集成（右键「用 Agentero 打开」）
 
 除 CLI 外，文件夹也可以直接从系统外壳作为 Vault 打开。两条路径最终都走

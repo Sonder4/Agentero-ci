@@ -46,9 +46,7 @@ Agentero 实现的范围是阅读提问。网页正文和划词共用 Agentero �
 
 针对 Chrome 的「选项」卡片，扩展静态包显示，后台把所选文字作为独立字段交给侧聊页面。既有网页 REA 证据 `ev_74f65f58d83187d482944779cbf988de421fae0798a17ab78f969dd5c524d0c0` 中，网站检查父框架是否属于官方扩展来源。Agentero 在普通网页模式中通过 Markdown 附件让引用与问题分别出现。
 
-现有网页登录态、会话 Markdown、图片资产、Projects、主题和主页的程序化控制边界见
-[ChatGPT Web 能力与桥接边界](../development/chatgpt-web-capability-analysis.md)。桥接层尚未实现，
-当前代码没有读取账号、导出会话或管理 Projects 的接口。
+项目和会话管理由 [Agentero CLI 的 ChatGPT 命令](../backend/cli.md#管理-chatgpt-网页会话与项目) 使用同一子 WebView 的网页控件完成。导出读取当前分支渲染出的消息文本及图片替代文字。此前对账号、会话 Markdown、图片资产、主题和主页的分析见 [ChatGPT Web 能力与桥接边界](../development/chatgpt-web-capability-analysis.md)。
 
 ## 验证范围
 
@@ -57,3 +55,5 @@ Agentero 实现的范围是阅读提问。网页正文和划词共用 Agentero �
 使用 `ui click chatgpt.selection.ask` 和 `ui click chatgpt.quote.attach` 将含中文和数学下标的笔记摘录放入 ChatGPT。已通过截图确认输入区上方的原生附件卡片显示摘录，原有问题草稿保留，通过 Host 日志确认 `chatgpt_sidebar_attach_quote ok=true`。同名文件被 ChatGPT 添加编号时，Agentero 按含摘录哈希的文件名识别附件。
 
 网页正文入口在 Windows WebView2 开发版通过 `ui click chatgpt.page.ask` 将 Cool Papers 和 Papers with Code 添加到同一侧栏。网页右键桥、表单与隐藏元素过滤、截短和来源链接通过本地测试验证。
+
+2026-11-20，使用 Windows WebView2 上的 `agentero ui chatgpt` 读取了两个置顶项目及其已加载的 5 条、7 条会话，以及 10 条最近会话。在测试项目里验证了创建、重命名、重新打开设置核对已保存的说明，以及上传后重新读取文件来源。合成会话 `test` 验证了新建、发送、重命名、置顶、创建分享链接、移入项目、JSON 导出和归档。直接打开会话导出时，逐字核对了用户输入和助手回复。归档后重新打开项目确认 `test` 已从项目会话列表移除。

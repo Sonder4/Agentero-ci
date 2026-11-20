@@ -21,6 +21,7 @@ agentero-mcp = { path = "../crates/agentero-mcp" }
 clap = { version = "4", features = ["derive", "env"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+base64 = "0.22"
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "net", "signal"] }
 dirs = { workspace = true }
 tempfile = { workspace = true }

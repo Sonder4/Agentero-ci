@@ -34,7 +34,17 @@ pub const UI_ACTION_OPEN_PATH: &str = "open-path";
 pub const UI_ACTION_OPEN_WINDOW: &str = "open-window";
 pub const UI_ACTION_CLOSE_PATH: &str = "close-path";
 pub const UI_ACTION_SPLIT: &str = "split";
-pub const LOCAL_UI_ACTIONS: &[&str] = &["actions", "shortcut", "command", "click", "key", "fill"];
+pub const UI_ACTION_CHATGPT: &str = "chatgpt";
+const CHATGPT_UI_REQUEST_MAX_BYTES: usize = 24 * 1024 * 1024;
+pub const LOCAL_UI_ACTIONS: &[&str] = &[
+    "actions",
+    "shortcut",
+    "command",
+    "click",
+    "key",
+    "fill",
+    UI_ACTION_CHATGPT,
+];
 
 /// Dockview split directions accepted by [`UI_ACTION_SPLIT`].
 pub const SPLIT_DIRECTIONS: &[&str] = &["left", "right", "above", "below", "within"];
@@ -563,6 +573,9 @@ fn local_ui_id(req: &UiRequestPayload) -> Result<uuid::Uuid, AppError> {
     }
     let valid_target = req.action == "actions"
         || req.path.as_deref().is_some_and(|target| {
+            if req.action == UI_ACTION_CHATGPT {
+                return window == "main" && target.len() <= CHATGPT_UI_REQUEST_MAX_BYTES;
+            }
             target.len() <= 4096
                 && (req.action == "fill"
                     || (!target.trim().is_empty() && !target.chars().any(char::is_control)))

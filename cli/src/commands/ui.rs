@@ -6,11 +6,16 @@
 
 use crate::error::CliError;
 use crate::resolve::{resolve_vault, GlobalOpts};
-use clap::{Subcommand, ValueHint};
+use base64::{engine::general_purpose::STANDARD, Engine};
+use clap::{Subcommand, ValueEnum, ValueHint};
 use serde_json::Value;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
-use agentero_core::features::open_request::{write_local_ui_request, UiRequestPayload};
+use agentero_core::features::open_request::{
+    write_local_ui_request, UiRequestPayload, UI_ACTION_CHATGPT,
+};
 
 /// Window ids `agentero ui window` may target (mirrors the desktop frontend's
 /// openable windows).
@@ -59,6 +64,26 @@ pub enum UiCmd {
         #[arg(long, default_value = "main")]
         window: String,
     },
+    /// Operate the signed-in ChatGPT website in the open Agentero sidebar.
+    Chatgpt {
+        #[arg(value_enum)]
+        action: ChatGptAction,
+        /// Relative ChatGPT link returned by the list commands.
+        #[arg(long)]
+        target: Option<String>,
+        /// New name, instructions, project link, or message.
+        #[arg(long, allow_hyphen_values = true)]
+        value: Option<String>,
+        /// Local file for project-source.
+        #[arg(long, value_hint = ValueHint::FilePath)]
+        file: Option<PathBuf>,
+        /// Create a new JSON file from export.
+        #[arg(long, value_hint = ValueHint::FilePath)]
+        out: Option<PathBuf>,
+        /// Replace only this exact existing draft before sending.
+        #[arg(long, requires = "value", allow_hyphen_values = true)]
+        replace_draft: Option<String>,
+    },
     /// Open (or focus) a Vault-relative document / folder / paper in the workspace.
     Open {
         /// Vault-relative path (e.g. `notes/idea.md`, `papers/demo`).
@@ -98,6 +123,28 @@ pub enum UiCmd {
     },
 }
 
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum ChatGptAction {
+    Status,
+    Projects,
+    Recent,
+    ProjectChats,
+    ProjectSources,
+    Open,
+    NewChat,
+    Send,
+    RenameChat,
+    PinChat,
+    MoveChat,
+    ArchiveChat,
+    ShareChat,
+    CreateProject,
+    RenameProject,
+    ProjectInstructions,
+    ProjectSource,
+    Export,
+}
+
 pub fn run(cmd: UiCmd, globals: &GlobalOpts) -> Result<Value, CliError> {
     match cmd {
         UiCmd::Actions { window } => run_local("actions", None, window, None, false),
@@ -111,6 +158,21 @@ pub fn run(cmd: UiCmd, globals: &GlobalOpts) -> Result<Value, CliError> {
         } => run_local("click", Some(label), window, occurrence, right),
         UiCmd::Key { chord, window } => run_local("key", Some(chord), window, None, false),
         UiCmd::Fill { value, window } => run_local("fill", Some(value), window, None, false),
+        UiCmd::Chatgpt {
+            action,
+            target,
+            value,
+            file,
+            out,
+            replace_draft,
+        } => run_chatgpt(
+            action,
+            target,
+            value,
+            file.as_deref(),
+            out.as_deref(),
+            replace_draft,
+        ),
         UiCmd::Open { path } => {
             let vault = resolve_vault(globals)?;
             crate::commands::open::open_path_in_app(&vault, &path, globals)
@@ -155,10 +217,91 @@ fn run_local(
 ) -> Result<Value, CliError> {
     let mut request = UiRequestPayload::local_action(action, target, window, occurrence);
     request.direction = right.then(|| "right".to_owned());
+    request_local(request, Duration::from_secs(10))
+}
+
+fn run_chatgpt(
+    action: ChatGptAction,
+    target: Option<String>,
+    value: Option<String>,
+    file: Option<&Path>,
+    out: Option<&Path>,
+    replace_draft: Option<String>,
+) -> Result<Value, CliError> {
+    if file.is_some() != matches!(action, ChatGptAction::ProjectSource) {
+        return Err(CliError::usage(
+            "--file is required only for project-source",
+        ));
+    }
+    if out.is_some() && !matches!(action, ChatGptAction::Export) {
+        return Err(CliError::usage("--out is available only for export"));
+    }
+    if replace_draft.is_some() && !matches!(action, ChatGptAction::Send) {
+        return Err(CliError::usage(
+            "--replace-draft is available only for send",
+        ));
+    }
+    if out.is_some_and(Path::exists) {
+        return Err(CliError::usage("The output file already exists"));
+    }
+    let file = file
+        .map(|path| -> Result<Value, CliError> {
+            const MAX_BYTES: u64 = 16 * 1024 * 1024;
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(|| CliError::usage("A UTF-8 file name is required"))?;
+            let mut bytes = Vec::new();
+            std::fs::File::open(path)
+                .and_then(|file| file.take(MAX_BYTES + 1).read_to_end(&mut bytes))
+                .map_err(|error| CliError::message(error.to_string()))?;
+            if bytes.is_empty() || bytes.len() as u64 > MAX_BYTES {
+                return Err(CliError::usage(
+                    "A nonempty project file of at most 16 MiB is required",
+                ));
+            }
+            Ok(serde_json::json!({ "name": name, "base64": STANDARD.encode(bytes) }))
+        })
+        .transpose()?;
+    let operation = action.to_possible_value().expect("named ChatGPT action");
+    let data = serde_json::json!({
+        "operation": operation.get_name(), "target": target, "value": value, "file": file,
+        "replaceDraft": replace_draft,
+    });
+    let request = UiRequestPayload::local_action(
+        UI_ACTION_CHATGPT,
+        Some(data.to_string()),
+        "main".into(),
+        None,
+    );
+    let result = request_local(request, Duration::from_secs(57))?;
+    if let Some(path) = out {
+        let directory = path
+            .parent()
+            .filter(|path| !path.as_os_str().is_empty())
+            .unwrap_or_else(|| Path::new("."));
+        let mut temporary = tempfile::NamedTempFile::new_in(directory)
+            .map_err(|error| CliError::message(error.to_string()))?;
+        serde_json::to_writer_pretty(temporary.as_file_mut(), &result)
+            .map_err(|error| CliError::message(error.to_string()))?;
+        temporary
+            .write_all(b"\n")
+            .map_err(|error| CliError::message(error.to_string()))?;
+        temporary
+            .persist_noclobber(path)
+            .map_err(|error| CliError::message(error.to_string()))?;
+        return Ok(
+            serde_json::json!({ "path": path, "messages": result["messages"].as_array().map_or(0, Vec::len) }),
+        );
+    }
+    Ok(result)
+}
+
+fn request_local(request: UiRequestPayload, timeout: Duration) -> Result<Value, CliError> {
     let path =
         write_local_ui_request(&request).map_err(|error| CliError::usage(error.to_string()))?;
     let response_path = path.with_extension("response");
-    let deadline = Instant::now() + Duration::from_secs(10);
+    let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
         match std::fs::read_to_string(&response_path) {
             Ok(body) => {

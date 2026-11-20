@@ -165,6 +165,7 @@ dependencies = [
  "agentero-core",
  "agentero-mcp",
  "assert_cmd",
+ "base64 0.22.1",
  "clap",
  "dirs 6.0.0",
  "env_logger",

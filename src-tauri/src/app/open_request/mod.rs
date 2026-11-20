@@ -270,8 +270,14 @@ pub fn spawn_cli_open_request_watcher<R: Runtime>(app: AppHandle<R>) {
             tokio::time::sleep(Duration::from_millis(400)).await;
             let mut local_actions = Vec::new();
             for req in take_local_ui_requests() {
+                if req.action == UI_ACTION_CHATGPT {
+                    let app = app.clone();
+                    tauri::async_runtime::spawn(async move {
+                        crate::app::window::chatgpt_cli::handle(&app, req).await;
+                    });
+                    continue;
+                }
                 let label = req.window.as_deref().unwrap_or("main");
-                // The main window also hosts the ChatGPT child WebView.
                 if app.get_webview(label).is_some() {
                     local_actions.push(req);
                 } else if let Some(id) = req.reference.as_deref() {

@@ -1,14 +1,13 @@
 # ChatGPT Web 能力与桥接边界
 
-**状态**：可行性分析已完成，桥接层尚未实现
+**状态**：本文记录早期的可行性分析。已实现的网页操作见 [ChatGPT CLI](../backend/cli.md#管理-chatgpt-网页会话与项目)。
 
 **分析日期**：2026-11-20
 
 **目标**：确认 Agentero 现有 ChatGPT Web 侧栏能否读取登录态、账号、会话、Markdown、图片和 Projects，
 并判断主题、项目设置、主页等页面能力能否由代码控制。
 
-本文只描述分析和接口设计。当前产品代码仍只提供 ChatGPT Web 嵌入与划词交接，没有会话导出、
-Projects 管理或设置控制 API。
+本文中的接口和私有请求路径用于记录早期分析。产品中的 ChatGPT CLI 通过现有侧栏的可见 DOM 操作项目、会话和来源。
 
 ## 结论
 
@@ -69,8 +68,8 @@ Projects 管理或设置控制 API。
 | 导出文本 Markdown | 可以 | `text` + `parts[]` 字符串 | 分支、引用和未知 part 需归一化 |
 | 导出图片 | 结构已确认，下载待补验 | `multimodal_text` + `image_asset_pointer` | 需认证解析并落到 Agentero 附件层 |
 | 读取 Projects 与内容 | 可以 | sidebar project response、files、conversations | 私有字段随页面版本变化 |
-| 创建和删除 Projects | 请求路径已定位 | `POST /projects`、`DELETE /gizmos/<id>` | 尚未执行写操作实机验证 |
-| 修改项目设置 | 可以通过 UI 控制 | 同名项目设置面板和 accessibility 控件 | 自动保存写接口尚未完整捕获 |
+| 创建和删除 Projects | 已通过网页控件验证创建 | 项目创建表单 | 删除未实测 |
+| 修改项目设置 | 已通过网页控件验证 | 打开项目设置保存说明，再重新打开核对 | 自动保存写接口尚未完整捕获 |
 | 修改主题 | 请求路径已定位 | `PATCH /settings/account_user_setting` | 尚未执行写操作实机验证 |
 | 打开主页、项目页、会话页 | 可以 | 产品 URL 导航 | 推荐内容和 UI 状态依赖页面版本 |
 
