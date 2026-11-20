@@ -39,21 +39,11 @@ ui actions → ui click / fill / key → 等待界面稳定 → 截图 → 读�
 5. **动作关联**：每次 `ui` 动作返回一个 id，并写入日志，`logs tail --since <id>` 可以只看这次操作之后的日志。
 6. **错误语义**：控件不存在、被禁用、被遮挡、窗口未挂载分别返回不同的 `error.code`，脚本能据此决定重试还是失败。
 
-### 首次实测发现的缺口（2026-11-20，Windows 双屏）
+### Windows 桌面实测（2026-11-20 至 2026-11-21）
 
-用 demo Vault 走了打开 Vault、Library 搜索、打开论文、设置窗口、命令面板、快速打开、关闭 / 重开标签、广场、魔棒共 27 步。CLI 能完成大部分流程，以下问题会让脚本失败或误判：
+在 demo Vault 中用 CLI 验证命令面板、Library 排序、论文及笔记打开和设置窗口。命令面板的可用候选项可以直接点。Library 部分裁剪的行仍可被发现，唯一匹配的列头可先滚入视野再点击。超出虚拟列表渲染范围的控件仍需要先通过应用的搜索或导航定位。
 
-| 问题 | 位置 | 影响 |
-|---|---|---|
-| cmdk 候选项被排除 | `desktop-ui-actions.ts` 用 `[data-disabled]` 过滤禁用控件，cmdk 给可用项也写 `data-disabled="false"` | 命令面板、快速打开等列表的候选项都不在 `ui actions` 中，只能用 `fill` + `ui key Enter` 选第一项 |
-| 被容器裁剪的控件判为遮挡 | 遮挡检测取「按视口裁剪后」矩形的中心点，没有按滚动容器裁剪 | Library 中比面板宽的论文行中心点落在右栏上，可见但无法点击 |
-| 不能滚动 | 没有滚动动作，点击前也不自动 `scrollIntoView` | Library 窄时「按日期排序」等列头在面板内被横向裁掉，无法点击 |
-| 名称不稳定或缺失 | 设置页 4 个开关显示为 `[switch]`；下拉框名称取当前值（「标题 · 作者」）；Library 行名称是整行文字，随可见列变化；Agent 输入框、NOTES 编辑区为 `[textbox]` | 脚本只能靠 `occurrence` 或易变文字定位 |
-| 一次请求被处理多次 | CLI 同时走请求文件、deep link 与 GUI argv，Host 不去重；ui 请求的 deep link 不带 Vault 路径 | 一次 `ui open` 在日志中成功 3 次、失败 2 次，并弹出「vault path is required」错误 Toast |
-| 日志噪声 | `ResizeObserver loop completed with undelivered notifications` 记为 ERROR | 「日志无 ERROR」不能直接作为断言 |
-| 视口与窗口不一致 | 窗口在 150% 副屏上时，网页视口比可见区域宽，`ui actions` 判为可见的标题栏右侧按钮实际在窗口外 | `ui actions` 的「可见」不等于用户看得到；需要截图核对 |
-
-这些问题修复后，上面「待实现」的等待、状态读取和截图才能真正支撑无人值守的连续测试。
+同一条 `ui open` 发出的多路投递在 Host 合并，Windows 深链携带完整 Vault 与论文路径。浏览器报告的 ResizeObserver 循环提示在日志中保留为 WARN。150% 副屏上的截断来自截图坐标的 DPI 虚拟化，按显示器 DPI 重新采集后，主窗口右侧标题栏控件均可见。
 
 ### 不在范围内
 
