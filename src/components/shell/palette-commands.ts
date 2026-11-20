@@ -12,6 +12,7 @@ import {
 	selectionStore,
 } from "@/lib/agent/selection-store";
 import { openChatGptQuote, openChatGptSidebar } from "@/lib/chatgpt/window";
+import { isMacOS, isWindows } from "@/lib/core/tauri";
 import { openMagicWand } from "@/lib/paper/import-actions";
 import { refreshLibrary } from "@/lib/paper/library-store";
 import {
@@ -124,7 +125,13 @@ export const paletteCommands: AppCommand[] = [
 	},
 	{
 		id: "vault.reveal",
-		titleKey: "commands.vaultReveal",
+		get titleKey() {
+			return isMacOS()
+				? "commands.vaultReveal"
+				: isWindows()
+					? "commands.vaultRevealWindows"
+					: "commands.vaultRevealFileManager";
+		},
 		categoryKey: "commands.catVault",
 		when: hasVault,
 		run: () => revealSelectedInFinder(),

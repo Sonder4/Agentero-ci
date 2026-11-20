@@ -52,6 +52,8 @@
 		"vaultCreate": "Create Vault…",
 		"vaultRefresh": "Refresh File Tree",
 		"vaultReveal": "Reveal in Finder",
+		"vaultRevealWindows": "Show in File Explorer",
+		"vaultRevealFileManager": "Show in File Manager",
 		"vaultTerminal": "Open in Terminal",
 		"vaultCollapseTreeCurrent": "Collapse Selected Folder",
 		"vaultCollapseTreeDefault": "Collapse Tree to papers/ Only",
