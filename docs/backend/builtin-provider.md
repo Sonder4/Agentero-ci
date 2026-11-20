@@ -2,6 +2,8 @@
 
 `agentero` 是一个内置 provider id：凭证在**构建期**编入 Host，使用它不需要填任何 baseUrl / API Key / model，设置面板也不为它渲染凭证卡片。注入 key 的构建中，新装 Host 默认使用内置翻译与 embedding；正文解析始终默认使用 `local`。
 
+> **前端可见性**：官方账户移除后，`accountSurfaceEnabled`（`src/features/account/visibility.ts`）固定为 `false`。翻译供应商列表过滤掉 `agentero`（`src/lib/translate/services/index.ts`），Embedding 设置不再显示 Agentero 预设（`agent-embedding-block.tsx`），已保存的 `translate.provider = "agentero"` 在打开翻译设置时回退到默认免费引擎（`translate-pane.tsx`）。Host 侧的构建期凭证、`builtin_provider_status` 与默认值逻辑保持不变，下文描述的是 Host 行为。
+
 三个消费方：
 
 | 能力 | 设置项 | 模型兜底 |

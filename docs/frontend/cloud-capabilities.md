@@ -1,12 +1,18 @@
-# Agentero 云端能力
+# Agentero 云端能力（当前构建已停用）
 
-翻译、OCR 和 Embedding 的 Agentero 云端入口与登录共用构建开关 `VITE_AGENTERO_ACCOUNT_SURFACE`，默认隐藏。只有显式设为 `1` 的内部构建才展示账户中的 OCR / 额度面板、翻译供应商中的 Agentero 选项和 Embedding 的 Agentero 预设。关闭时不探测账户会话，不查询额度或恢复 OCR 任务，能力请求也会在发出前拒绝。已有 Agentero 翻译选择在打开设置时回到默认免费引擎；本地能力和第三方 BYOK 配置继续可用。
+> **状态**：官方登录与 better-auth Host 插件已移除（`refactor(account): remove official login and better-auth host plugin`）。`src/features/account/visibility.ts` 的 `accountSurfaceEnabled` 固定为 `false`，`VITE_AGENTERO_ACCOUNT_SURFACE` 环境变量不再生效；`release.yml` 中对它的设置是遗留配置。下文保留被关闭的实现说明，供后续决定彻底删除或恢复为构建开关时参考。
 
-内部桌面验证使用 `VITE_AGENTERO_ACCOUNT_SURFACE=1 pnpm tauri dev`；公开安装包保持关闭。
+当前行为：账户分区、OCR / 额度面板、翻译供应商中的 Agentero 选项和 Embedding 的 Agentero 预设都不渲染；不探测账户会话，不查询额度或恢复 OCR 任务；`src/features/capabilities/data.ts` 的能力请求在发出前抛出 `CAPABILITY_DISABLED`。已有 Agentero 翻译选择在打开设置时回到默认免费引擎；本地能力和第三方 BYOK 配置继续可用。
+
+仍引用该开关的代码分支：`writing-cloud-context.tsx`、`writing-pdf-bar.tsx`、`tree-rows.tsx`、`translate-pane.tsx`、`sync-pane.tsx`、`agent-embedding-block.tsx`、`features/capabilities/data.ts`、`lib/translate/probe.ts`、`lib/translate/services/index.ts`、`use-flush-markdown-on-close.ts`。
+
+## 停用前的实现
+
+以下各节描述开关开启时的行为。
 
 账户设置中的云端区域提供翻译、OCR 和 Embedding 免费剩余额度，以及一个账户级「超额使用 Credit」开关。开关默认关闭，统一控制三项能力；说明通过问号展开，不提供能力消费上限表单。个人和组织账户分别保存设置，组织仅 owner/admin 可修改。
 
-`src/features/capabilities/data.ts` 集中管理会话请求、查询缓存、开关和操作恢复；通过 `tauriFetch` 使用现有账户会话。Rust 账户插件允许 `/api/account/capabilities` 和组织路由，不改变 IPC 命令签名。
+`src/features/capabilities/data.ts` 集中管理会话请求、查询缓存、开关和操作恢复；通过 `tauriFetch` 使用账户会话。原 Rust 账户插件（`src-tauri/src/app/account.rs`，已删除）负责放行 `/api/account/capabilities` 和组织路由，不改变 IPC 命令签名。
 
 ## 翻译
 
@@ -26,4 +32,4 @@ Embedding 设置中的 Agentero 预设填入账户 API `/v1` 地址和 `agentero
 
 前端变更运行 `pnpm typecheck`、`pnpm deps:check` 和能力数据层测试。原生验证须先完成仓库词典、PDFium 等资源准备，再运行 `pnpm tauri dev`；浏览器页面验证不能替代原生会话联调。
 
-本地开关专项测试覆盖开关未设置、`0`、`1` 三种构建状态，验证翻译供应商、Embedding 预设、额度与 OCR 恢复查询、请求派发及会话探测；新增用例仅用于本地验证，不提交仓库。既有数据层测试验证内部构建的幂等恢复与账户隔离。完整原生资源构建仍需先成功准备 `dictionary/*`，临时去掉词典资源的调试配置仅适合核对设置界面。
+开关仍读取环境变量时，本地开关专项测试覆盖开关未设置、`0`、`1` 三种构建状态，验证翻译供应商、Embedding 预设、额度与 OCR 恢复查询、请求派发及会话探测；新增用例仅用于本地验证，不提交仓库。既有数据层测试验证内部构建的幂等恢复与账户隔离。完整原生资源构建仍需先成功准备 `dictionary/*`，临时去掉词典资源的调试配置仅适合核对设置界面。

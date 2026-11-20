@@ -32,13 +32,9 @@ PDF 上方一行的左边是编译按钮和黄色叹号入口。编译中按钮�
 
 ## 项目云协作
 
-项目云协作与云编译目前仅供内部桌面构建测试，与登录入口共用 `VITE_AGENTERO_ACCOUNT_SURFACE` 构建开关。公开安装包显式关闭。关闭时，文件树与编译工具栏隐藏云项目入口，已绑定的本地副本也按普通本地文件打开，协作绑定留在 Vault 中供内部构建重新连接。
+> **状态**：官方登录已移除，`accountSurfaceEnabled`（`src/features/account/visibility.ts`）固定为 `false`，`VITE_AGENTERO_ACCOUNT_SURFACE` 不再生效，项目云协作与云编译在所有构建中都关闭。见 [Agentero 云端能力](cloud-capabilities.md)。
 
-本地内部测试使用以下命令。内部安装包可用同一个环境变量运行 `pnpm tauri build`。
-
-```bash
-VITE_AGENTERO_ACCOUNT_SURFACE=1 pnpm tauri dev
-```
+关闭时，`WritingCloudProvider` 直接渲染子节点，文件树与编译工具栏隐藏云项目入口，已绑定的本地副本按普通本地文件打开，协作绑定留在 Vault 中不被清除。以下为开关开启时的行为。
 
 显式项目的编译工具栏有云图标。打开后可登录 Agentero，再选择「启用云协作」。应用先保存编辑器缓冲，再上传当前项目根目录内的源码、目录和素材。生成的 PDF、编译缓存、隐藏配置和本地冲突副本留在本机。分类目录、兄弟项目和整个 Vault 不参与上传。
 
