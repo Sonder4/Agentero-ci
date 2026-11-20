@@ -4,7 +4,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::fmt;
 
-/// Process exit codes (see docs/development/cli.md).
+/// Process exit codes (see docs/backend/cli.md).
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExitCode {

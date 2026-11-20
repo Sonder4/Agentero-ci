@@ -1,7 +1,7 @@
 //! Agentero headless CLI (`agentero`).
 //!
 //! Vault / Catalog machine interface — no BYOA, no paper-reader.
-//! See `docs/development/cli.md`.
+//! See `docs/backend/cli.md`.
 
 mod args_rewrite;
 mod commands;

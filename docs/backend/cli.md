@@ -20,20 +20,43 @@ Headless Vault / Catalog / Wiki 接口；**不含** BYOA / paper-reader。
 | `sync` | 云同步（S3/R2、WebDAV、Git）：configure / status / test / now / disconnect，与桌面端共用引擎（见下） |
 | `mcp serve` | 前台 Streamable HTTP MCP（loopback）。与桌面端共用工具面，不启动 GUI。见 [mcp.md](mcp.md) |
 | `describe` | Agent 自省：策展型 op 目录与单 op 的 input/output/errors/examples（机器契约真源） |
-| `paper` | list/get、tag list/set/add/rm、move、open、download/parse、notes fetch… |
+| `paper` | `list` / `get` / `paths` / `set-read` / `set-meta` / `download` / `parse` / `add` / `move` / `delete` / `open`、`tag list\|set\|add\|rm`、`notes fetch` |
 | `import` | 标识符 / BibTeX / 本地 PDF 入库；`import pdf --layout` 可在入库后顺带跑版面分析 |
 | `discover` | 查询式发现：按关键词/分类/提交日期窗口抓 arXiv 候选，确定性词法排序（headless、无 embedding key） |
 | `feed` | 广场订阅源（RSS / Atom / JSON Feed）：`list` / `add` / `remove` / `refresh` / `items` / `read`；与桌面端共用 `$XDG_DATA_HOME/agentero/feeds.sqlite`，无 Vault 概念 |
-| `export` | 导出 |
+| `export` | `export bib`：经 Translator 导出整个 catalog；`--format bibtex\|biblatex\|ris\|csljson…`（默认 `bibtex`），`-o/--out <FILE>`（默认 `-` 即 stdout） |
 | `doctor` | Vault 结构与 Catalog 诊断；含 wikilink 检查与 aliases / 视觉批注 / catalog 去重修复 |
 | `layout` | 侧栏同构版面索引：`list` / `get` / `analyze`（figure / table / algorithm / formula / section / paragraph）；`analyze` 用远程 Provider 生成 sidecar |
 | `mark` | 阅读标注：`list` / `get` / `add`（`--quote` 文字锚点或 `--region` 区域锚点）/ `update` / `delete` |
-| `ui` | 桌面工作区操作 `open` / `close` / `window` / `split`，以及运行中窗口的 `actions` / `shortcut` / `command` / `click` / `key` |
+| `ui` | 桌面工作区操作 `open` / `close` / `window` / `split`，以及运行中窗口的 `actions` / `shortcut` / `command` / `click` / `fill` / `key` |
 | `settings` | 读取和修改应用、Agent、插件、Vault Doctor 与 CLI 配置 |
 | `translate` | 免费机器翻译纯文本（无需 API Key，不读桌面 settings） |
 | `table` | 科研表格行操作：`query` / `upsert` / `update-cells`（与桌面网格共用 `*.table.json`） |
 
 稳定 `--json` 输出，供脚本与外部 Agent 组合。JSON 默认 **compact 单行**（省 token），`--pretty` 恢复缩进美化（[#367](https://github.com/poco-ai/Agentero/issues/367)）。
+
+### 输出信封、错误码与退出码
+
+`--json` 下成功与失败都写 stdout，结构固定（`cli/src/output.rs`、`cli/src/error.rs`）：
+
+```json
+{"ok":true,"data":<命令结果>}
+{"ok":false,"error":{"code":"paper_not_found","message":"…","details":{…}}}
+```
+
+| 退出码 | 含义 | 典型 `error.code` |
+|---|---|---|
+| 0 | 成功 | — |
+| 1 | 业务失败 | `paper_not_found`、`paper_ambiguous`（`details.candidates` 给出可重试的 Vault 相对路径）、`import_failed`、`export_failed`、`asset_missing`、`mark_locate_failed`、`catalog_busy`、`io`、`json`、`message` |
+| 2 | 用法错误 | `usage`（未知字段、缺参数等由命令自身校验的情况） |
+| 3 | Vault 不可用 | `vault_not_found` |
+| 4 | 需要确认 | `needs_confirmation`：破坏性操作在 `--json` 下不提示，未带 `-y` 即返回此码 |
+
+注意：
+
+- clap 层的参数解析错误（未知子命令、未知 flag）在 `--json` 下也**不**包信封，直接由 clap 把带样式的用法文本写到 stderr，退出码 2。脚本应先看退出码，再解析 stdout。
+- 部分错误码目前由错误消息文本推断：Core 返回的所有 SQLite 错误都映射为 `catalog_busy`（不只是锁冲突），消息中含 `not found` 的错误映射为 `paper_not_found`。`feed` 子命令自行映射，SQLite 错误以 `sqlite` 返回。不要把 `catalog_busy` 无条件当作可重试。
+- 文本模式下 `export bib` 输出到 stdout 时，导出内容之后还会多打一行 `exported N entries as … → -`；重定向到文件时请用 `-o <FILE>`、`--json` 或 `-q`。
 
 ### 应用设置（`settings`）
 
@@ -633,7 +656,7 @@ agentero ui click chatgpt.quote.insert
 
 ## 云同步（`sync`）
 
-无桌面环境（服务器等）下的双向 Vault 同步；与桌面端共用 `agentero-core::features::sync` 引擎与 XDG `sync.json` 绑定。S3/WebDAV 的冲突处理（三方合并 + 冲突副本）、拒绝不可靠的条件写、断点续传与空转短路语义完全一致；Git 后端走独立的 work-tree 同步（原生 merge、冲突 abort），见 [sync.md](sync.md#git)。
+无桌面环境（服务器等）下的双向 Vault 同步；与桌面端共用 `agentero-core::features::sync` 引擎与 XDG `sync.json` 绑定。S3/WebDAV 的冲突处理（三方合并 + 冲突副本）、拒绝不可靠的条件写、断点续传与空转短路语义完全一致；Git 后端走独立的 work-tree 同步（原生 merge、冲突 abort），见 [sync.md](sync.md#git-后端)。
 
 ```bash
 # 服务器首次接入已有远端库（vault 从未同步过时自动采纳远端 vaultId 完成加入）
@@ -685,5 +708,7 @@ agentero sync now --vault ~/papers --json
 `agentero doctor fix aliases` 在 TTY 中逐篇展示已有 alias，并允许编辑生成的标题 alias / 短 alias，最后进行一次批量确认。`-y` 接受全部安全默认值；`--json` 从不提示，未同时传 `-y` 时返回 `needs_confirmation`。修复会保留已有自定义 aliases，以内容哈希做竞态检查，并作为一个可回滚批次写入。
 
 `agentero doctor fix visual-marks -y` 将旧版 `kind: agent-trace`（扁平 agent 字段）迁移为 `kind: visual` v2（可选嵌套 `agent`），幂等；不改 id 与裁剪图路径。详见 [doctor.md](doctor.md)。
+
+`agentero doctor fix catalog-duplicates -y` 删除 catalog 中重复的论文行，每个论文 id 保留一条规范行（`apply_catalog_duplicate_repairs`）。没有重复时返回 `removedRows: 0`；有重复时 TTY 下提示确认，`--json` 未带 `-y` 返回 `needs_confirmation`，`details.duplicateReport` 列出将处理的重复 id 与路径。
 
 Skill 种子：`templates/vault/.agents/skills/agentero-cli/`，含两个平台变体——`SKILL.md`（POSIX，命令 `agentero`）与 `SKILL-windows.md`（Windows，命令 `agentero-cli`、PowerShell/cmd 语法）。播种时按宿主平台选择变体写入同一个 skill id，skill 目录不随平台变化。
