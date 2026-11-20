@@ -110,6 +110,7 @@ nav:
       - 概览: development/index.md
       - 使用记录总结 (#239): development/usage-analytics.md
       - A2A 本机与远端协作: development/A2A.md
+      - CLI 驱动的 UI 自动化: development/cli-ui-automation.md
       - 通用决策层设计草案: development/decision-layer.md
       - "[RFC] 学术数据解析与补全架构": development/rfc-scholarly-data-resolution.md
       - Vault 同步审计与重构提案: development/vault-sync-review.md

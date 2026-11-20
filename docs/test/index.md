@@ -179,6 +179,20 @@ CI 的 `agentero-tests` 任务运行 Host 与 `agentero-plugin-host` 测试，�
 | 命令面板 `⌘P` / `⇧⌘P` 打开后再按同键或 `⌘W` | 关闭面板 |
 | 触发删除失败 / 无 Vault 操作等 | 右上角 Toast，不出现侧栏 header 错误条 |
 
+## CLI 驱动的桌面测试
+
+桌面流程优先用 `agentero ui` 指令驱动，按「操作 → 等待 → 截图 → 读日志」逐步验证，不用 CUA 模拟点击。要求与缺口见 [../development/cli-ui-automation.md](../development/cli-ui-automation.md)。
+
+1. 启动应用：`pnpm tauri dev`。vite 已在 1420 端口运行时，可用 `pnpm tauri dev --config '{"build":{"beforeDevCommand":""}}'` 复用它（资源需已 stage 过）。
+2. 使用与源码同版本的 CLI：`cargo run -p agentero-cli -- <args>`，或 `cargo build -p agentero-cli` 后运行 `target/debug/agentero-cli`。已安装的 CLI 可能落后于工作区。
+3. 列出当前窗口可操作的控件：`agentero ui actions --json`（`--window settings` 指定其它窗口）。
+4. 触发：`ui click <id|名称> [--occurrence N]`、`ui fill <文本>`、`ui key <组合键>`、`ui shortcut <id>`、`ui command <命令面板 id>`；打开文档与窗口用 `ui open` / `ui window`。
+5. 再次 `ui actions --json` 确认界面进入下一状态（`ui wait` 实现前，这一步代替等待）。
+6. 截图：`ui screenshot` 实现前，用系统截图工具截取应用窗口。
+7. 日志：应用日志目录中的 `agentero.log`（Windows 为 `%LOCALAPPDATA%\com.poco-ai.agentero\logs\`，其它平台为 Tauri `app_log_dir`）。检查本步时间段内有无 `ERROR` / `WARN` 和失败的 `op end … ok=false`。
+
+汇报时列出执行的指令序列、截图和相关日志行；CLI 无法覆盖的步骤（系统对话框、拖拽、视觉细节）单独说明用了什么方式验证。
+
 ## 文档验证
 
 修改 docs 或 `mkdocs.yml` 后运行：

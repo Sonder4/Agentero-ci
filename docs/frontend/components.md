@@ -52,6 +52,25 @@ Agent / Reasoning 消息里的 Markdown：`Streamdown` + `PlainTable` / `PlainCo
 
 列表行（论文库、PDF 目录、设置导航、文件树）的 hover / 选中底色落在整行容器上。只读单元格不再叠加内容宽度的 hover 底色；可编辑单元格用尾随铅笔 / 下拉图标提示，行底色由表格行统一提供。PDF 书签编辑行把 hover 放在整行 `<fieldset>` 上，尾部操作按钮也共享同一底色。设置页侧栏的选中态保持平层，不加阴影。
 
+## 可脚本化控件
+
+要求：每个可交互控件都能被 `agentero ui` 发现并触发（总则见根目录 `AGENTS.md`「UI 可脚本化」，命令用法见 [../backend/cli.md](../backend/cli.md#触发运行中窗口的控件)）。
+
+**发现规则**（`src/lib/shell/commands/desktop-ui-actions.ts`）：
+
+- 候选元素：`[data-ui-action]`、`button`、可点击的 `input`、文本输入框、`textarea`、`summary`、`a[href]`、`[contenteditable=true]`、`[data-hint]`，以及 role 为 `button` / `checkbox` / `switch` / `radio` / `tab` / `combobox` / `menuitem*` / `option` / `treeitem` / `textbox` 的元素。
+- 排除：位于 `aria-hidden=true`、`inert`、`aria-disabled=true`、`hidden` 内，`:disabled` 或 `data-disabled`，`visibility` 不是 `visible`，不在视口内，或中心点被其它元素遮住的控件。
+- 范围：焦点在菜单 / 列表框里时只看该菜单；有模态对话框时只看对话框；否则看整个窗口。
+- 名称取值顺序：`aria-labelledby` → `aria-label` → `<label>` / 按钮值 → 可见文字 → `title` → `placeholder`；都没有时显示为 `[role]`。同名控件按出现顺序编号，用 `--occurrence` 选择。
+
+**组件写法**：
+
+- 用 shadcn / Radix 组件或原生元素，不要用无 role 的 `div` 承接点击。
+- 只有图标的按钮必须有 `aria-label`（文案走 `t()`），可同时给 `title`。
+- 测试流程里会用到的控件加 `data-ui-action`，命名为 `<域>.<对象>.<动作>`，如 `chatgpt.selection.ask`、`pdf.viewport`。同一时刻同一 ID 只出现一处可见控件；列表行等重复控件靠名称加 `occurrence` 区分，或在 ID 里带上稳定的业务键。
+- 只在悬停时渲染的入口（如面包屑的子项候选）、拖拽、画布上的手势，要在命令面板、快捷键或 CLI 子命令中提供等价操作。
+- 操作完成后，界面状态要能被下一次 `ui actions` 观察到（出现新控件、标签、选中态）；失败走 `notifyError` 并写日志。
+
 ## 业务组件目录
 
 | 目录 | 职责 |

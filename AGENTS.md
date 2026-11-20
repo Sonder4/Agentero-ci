@@ -39,6 +39,16 @@ Agentero 是一个基于 Tauri 2 + React 19 的本地优先科研工作台，产
 
 平台补丁保持不变：新窗口命令必须 async；macOS 第二窗口在主线程 `setCollectionBehavior`；Windows 唤起顺序是 unminimize → show → set_focus；原生窗口装饰；`CREATE_NO_WINDOW`；`dragDropEnabled`；`PdfEngineHost` / `EditorDndProvider` 放在 StrictMode 外。沉浸全屏不并进这套布局。Windows 多窗口这次没有复验，不要写成已经验证。
 
+## UI 可脚本化（CLI 驱动）
+
+目标：应用里每个用户能操作的界面都能用 `agentero ui` 指令触发，在 GUI 中产生与点击相同的效果。调试和验收靠连续执行 CLI 指令，配合截图和日志完成，不依赖 CUA 模拟点击。控件约定见 [docs/frontend/components.md](docs/frontend/components.md)「可脚本化控件」，测试流程见 [docs/test/index.md](docs/test/index.md)「CLI 驱动的桌面测试」，尚未实现的部分见 [docs/development/cli-ui-automation.md](docs/development/cli-ui-automation.md)。
+
+- **可发现、可触发**：新增或修改的可交互控件（按钮、开关、菜单项、标签页、列表项、输入框）必须能被 `agentero ui actions` 列出，并能由 `ui click` / `ui fill` / `ui key` 触发。用原生元素或正确的 ARIA role，必须有可访问名称；只有图标的按钮必须有 `aria-label`。
+- **稳定 ID**：测试流程会用到的控件加 `data-ui-action="<域>.<对象>.<动作>"`（如 `chatgpt.quote.attach`）。ID 不随界面语言变化，不复用；改名或删除视为破坏契约，同步更新文档与测试脚本。
+- **语义入口**：点击表达不了的操作（拖拽、悬停才出现的入口、PDF 画布划词、系统文件对话框）必须另有等价入口：命令面板命令（`ui command`）、全局快捷键（`ui shortcut`）或专用 CLI 子命令（如 `ui open`、`mark add`）；需要选文件的入口要能直接传路径。
+- **结果可观测**：触发后的成功结果要体现在界面状态（能被 `ui actions` 再次看到）或日志里；失败走 `notifyError` 并写日志，不能静默。
+- **验收方式**：UI 改动优先用 CLI 驱动走完流程，每一步截图并检查日志。只有 CLI 覆盖不到的视觉效果和真实指针输入才用 CUA。
+
 ## 开发规则
 
 - 优先做小而聚焦的改动，能用少的修改解决问题就不要增加复杂度。高内聚、低耦合。如果系统有额外冗余可以提示用户进行重构
@@ -118,7 +128,7 @@ cargo test -p agentero-cli
 cargo test -p agentero-core   # tauri 无关基础层（crates/agentero-core）
 ```
 
-完成实现前运行最小必要验证。UI 改动用 `pnpm tauri dev` 启动桌面应用，检查对应流程。
+完成实现前运行最小必要验证。UI 改动用 `pnpm tauri dev` 启动桌面应用，按「UI 可脚本化」用 `agentero ui` 指令驱动对应流程，并检查截图与日志。
 
 ## 文档地图
 

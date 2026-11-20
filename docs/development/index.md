@@ -13,6 +13,7 @@
 
 | 文档 | 主题 |
 |---|---|
+| [cli-ui-automation.md](cli-ui-automation.md) | CLI 驱动的 UI 自动化：所有控件可由 `agentero ui` 触发，配合截图、日志与等待完成桌面测试。**部分实现**，截图 / 日志 / 等待 / 状态读取待做 |
 | [vault-sync-review.md](vault-sync-review.md) | Vault 同步审计与实施记录：五个反例、修复策略、落盘恢复及验收边界。 |
 | [rfc-scholarly-data-resolution.md](rfc-scholarly-data-resolution.md) | 学术数据解析与补全 RFC：来源编排、身份与字段证据、venue、PwC、机构 PDF 获取边界。**设计稿，待评审** |
 | [usage-analytics.md](usage-analytics.md) | \#239 Activity 总线。P0 存储已落地：XDG `usage.sqlite`（见 [../backend/usage.md](../backend/usage.md)） |
