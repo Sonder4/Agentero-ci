@@ -123,7 +123,12 @@ export function PlazaCcfDeadlinesView({ className }: { className?: string }) {
 			: code;
 
 	return (
-		<div className={cn("relative flex h-full min-h-0 flex-col", className)}>
+		<div
+			className={cn(
+				"@container/ccf relative flex h-full min-h-0 flex-col",
+				className,
+			)}
+		>
 			<div className="agentero-scroll min-h-0 flex-1 overflow-y-auto">
 				{/* Translucent chrome: rows scroll under it (Apple material). */}
 				<div
@@ -203,7 +208,7 @@ function DeadlineRow({ item }: { item: CcfDeadlineItem }) {
 				: t("plaza.ccfDeadlines.daysLeft", { days });
 
 	return (
-		<div className="group flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors duration-[var(--motion-duration-micro)] hover:bg-muted/60 motion-reduce:transition-none">
+		<div className="group flex items-center gap-2 rounded-md px-2 py-1.5 @max-md/ccf:flex-wrap transition-colors duration-[var(--motion-duration-micro)] hover:bg-muted/60 motion-reduce:transition-none">
 			<span
 				className={cn(
 					"inline-flex size-5 shrink-0 items-center justify-center rounded-md font-semibold text-caption tabular-nums",
@@ -213,7 +218,9 @@ function DeadlineRow({ item }: { item: CcfDeadlineItem }) {
 			>
 				{item.rank}
 			</span>
-			<span className="min-w-0 truncate text-sm font-medium">{item.title}</span>
+			<span className="min-w-0 flex-1 truncate text-sm font-medium">
+				{item.title}
+			</span>
 			{item.estimated ? (
 				<span
 					className="shrink-0 rounded border border-border/60 px-1 text-caption text-muted-foreground/70"
@@ -228,11 +235,11 @@ function DeadlineRow({ item }: { item: CcfDeadlineItem }) {
 				</span>
 			) : null}
 			{item.comment ? (
-				<span className="hidden min-w-0 truncate text-caption text-muted-foreground/80 md:inline">
+				<span className="hidden min-w-0 truncate text-caption text-muted-foreground/80 @md/ccf:inline">
 					{item.comment}
 				</span>
 			) : null}
-			<span className="ml-auto flex shrink-0 items-center gap-2">
+			<span className="ml-auto flex shrink-0 flex-wrap items-center gap-x-2 @max-md/ccf:w-full @max-md/ccf:pl-7">
 				<span className="font-mono text-caption tabular-nums text-muted-foreground/70">
 					{item.deadline.slice(0, 16)}
 					{item.timezone ? (
