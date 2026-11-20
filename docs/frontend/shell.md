@@ -112,6 +112,31 @@ macOS 原生菜单在启动及设置保存后读取 `shortcutOverrides`，菜单
 
 命令与菜单共享的 `MenuContext` 定义在 `src/lib/shell/commands/types.ts`，菜单模块保留类型再导出供现有调用方使用。类型模块不引用菜单实现，避免与命令 registry 形成循环依赖；`pnpm deps:check` 会检查这类依赖环。
 
+## 键盘 Hint 模式与 Vim 键
+
+开关在「设置 → 通用 → 键盘」：`vimMode`（默认开）是所有单键导航的总开关，`hintModeEnabled`（默认开）只管 `F` 提示，见 [settings.md](settings.md)。keydown 时读 `loadSettings()` 模块缓存，设置窗改完不等 React 重渲染；任一开关关闭会立即撤掉已显示的标签。
+
+`HintModeProvider`（`src/components/shell/hint-mode-provider.tsx`）在 window 捕获阶段监听 keydown。每个 Webview 是独立 document：主窗在 `App.tsx` 挂载，设置 / 功能 / 文档窗在 `main.tsx` 各自包一层；新窗口根节点不包，`F` 在那里就无效。
+
+- **进入**：按 `F`（不带 ⌘ / Ctrl / Alt，非 repeat），焦点不在输入区、没有 IME 组合、页面没有非空文字选区。按键被吞掉。
+- **扫描**：范围是最上层真模态 dialog；`aria-modal="false"` 的 PDF / 悬浮卡不算，否则扫整个 body。候选是 `[data-hint]` 显式目标，加上 button、tab、treeitem、menuitem*、option、`a[href]`；显式容器吞掉内部控件，一行只出一个标签。剔除 disabled / inert / hidden / `aria-hidden` / `[data-hint-ignore]`、输入控件、contenteditable、canvas、`[data-pdf-content]`，以及不可见、小于 8px、出视口、中心点被遮挡的元素。按 `data-hint-priority`（显式缺省 2，通用 3）→ 上 → 左排序，最多 60 个，进入时冻结（`src/lib/keyboard/hint-targets.ts`）。
+- **标签**：字母表 `asdghjklqwertyuiopzxcvbnm`（去掉 `f`，25 个）。目标不超过 25 个用单字母，否则整场统一两字母，不会出现 `a` 遮住 `aa`。大小写不敏感；Shift / Option 组合或非拉丁布局退回物理键 `KeyA`–`KeyZ`（`src/lib/keyboard/hint-labels.ts`）。
+- **输入**：逐字收窄，未匹配的标签降到 15% 不透明度；唯一完整匹配即退出并激活。Backspace 删一位；没有匹配的字母保留前缀、不退出；单按 Shift 等修饰键不退出。Esc、再按 `F`、带 ⌘ / Ctrl / Alt 的键、非字母键退出；滚动、resize、窗口失焦、任意 pointerdown、目标被移出 DOM 也退出。
+- **激活**：`activateHintTarget`（`src/lib/keyboard/hint-activate.ts`）先 focus，再在元素中心依次派发 pointerdown → mousedown → pointerup → mouseup → click。Radix / Base UI 这类在 pointerdown 打开的菜单（Agent 切换器、标题栏齿轮）因此也能打开。
+- **读屏**：进入时经 `aria-live` 播报目标数（`navigator.hintTargets`）；标签浮层本身 `aria-hidden`。
+
+**列表 j/k/h/l**：`forwardListVimKey`（`src/lib/keyboard/list-vim-keys.ts`）不自己实现导航，而是把字母改派成方向键 keydown 发给当前焦点，跳过禁用项、循环、展开折叠和 Enter 都沿用原组件。
+
+- 打开的 `role=menu` / `listbox`（取最后一个可见的，焦点在其内或经 `aria-controls` / `aria-owns` 关联）：`j` / `k` → ↓ / ↑，`h` / `l` 不处理。
+- 焦点在 `[role=tree] [role=treeitem]`（文件树、大纲）：`j` / `k` / `h` / `l` → ↓ / ↑ / ← / →。
+- 只在 `vimMode` 开、没有 hint 会话、不在输入区、无 IME 组合、无任何修饰键（含 Shift）时生效。不受 `hintModeEnabled` 影响。
+
+**键归属**（`src/lib/keyboard/ownership.ts`）：
+
+- `isKeyboardInput`：`input` / `textarea` / `select`、可编辑 contenteditable、`role=textbox`、CodeMirror（`.cm-editor`）和快捷键录制框（`[data-shortcut-recording]`）内，单键一律不拦。
+- `keyboardModalOpen`：overlay-stack 有模态弹层，或 DOM 里有可见的 dialog / alertdialog / `dialog[open]`。Hint 模式遇到模态只缩小扫描范围；PDF 键遇到模态则让出。
+- PDF Vim 键另由 `ownsPdfKeyboard`（`src/lib/pdf/keyboard-ownership.ts`）判定：输入区或模态打开时不归 PDF；事件目标在 PDF chrome、菜单、listbox、tree、grid、slider、tablist 等控件内时让给控件；指针悬停的 PDF 视口优先，指针在另一分屏的 PDF 上时活动面板不抢；都不满足时，只有活动面板且焦点在 body 或面板内才接管。键位与跳页序列（`PdfKeySequence`）见 [pdf.md](pdf.md)。
+
 ## 设计约定
 
 - **Motion tokens**（`index.css` / `src/lib/core/motion.ts` 的 `MOTION_MS`）：`micro` 100ms（按压/hover）、`fast` 150ms（浮层进出）、`normal` 200ms（任务 HUD 等大块编排）。壳层默认无 bounce；可打断的手势再考虑弹簧。侧栏折叠/展开不做布局动画，避免 PDF 等重内容在动画中逐帧重排。

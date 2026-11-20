@@ -99,6 +99,7 @@ UI (AI Elements: Conversation + Message + PromptInput + Sources)
 | Dockview 工作区 / 功能窗 / 文档弹窗 | [workspace.md](workspace.md) |
 | 文件树 | [vault-tree.md](vault-tree.md) |
 | 论文库 Library（含阅读热力条） | [library.md](library.md) |
+| 广场 Plaza（订阅、arXiv 每日推荐、CCF 截稿、Skill 推荐、站点 iframe） | [plaza.md](plaza.md) |
 | 入库 UI | [paper-import.md](paper-import.md) |
 | Markdown 编辑 | [markdown.md](markdown.md) |
 | LaTeX 写作、编译与 SyncTeX | [latex.md](latex.md) |

@@ -162,6 +162,38 @@ cargo test -p agentero-core pdf::layout_index
 
 机器契约与 CLI 共用 `agentero-core::ops`；CLI 侧用 `agentero describe` 自省。
 
+## Ops 目录
+
+`crates/agentero-core/src/ops/` 是人工维护的机器契约目录，不是 clap 反射。CLI、MCP 和插件 broker 共用它。
+
+| 文件 | 内容 |
+|---|---|
+| `catalog.rs` | 全部 `OpSpec`，顺序稳定；条目默认 internal / `unspecified` / `"0"` |
+| `classify.rs` | 每个 id 的 stability / permission / since 总表，构建时由 `apply` 写回 catalog；漏列或重复列都会使测试失败 |
+| `invariants.rs` | `common_invariants_markdown` 与 `mcp_invariants_markdown`，拼成 `agentero://agent-invariants` |
+| `events.rs` | `public_events()`：插件可见的 5 个 lifecycle 事件（`vault:opened`、`paper:imported`、`paper:assets-ready`、`paper:renamed`、`paper:opened`）及字段。只做描述，不发送也不订阅 |
+
+`OpSpec` 字段：`id`（如 `paper.list`）、`cli?`（以 `agentero` 开头的完整命令）、`mcpTool?`（如 `paper_list`）、`summary`、`sideEffects`（`none` / `read` / `write` / `destructive`）、`stability`、`permission`、`since`、`surfaces`（`cli` / `mcp`）、`supportsDryRun`、`requiresConfirmation`、`input` / `output`（JSON 形状示意）、`errors`、`examples`。`ops::get` 同时接受 id、MCP 工具名和 CLI 命令；查不到时 `suggest` 按子串返回最多 8 个候选。
+
+- `stability`：`internal` / `experimental` / `stable`，只有 stable 是公开契约。
+- `permission`：wire 值为 `vault:read`、`vault:notes:write`（只限 `NOTES.md`）、`catalog:write`、`vault:write`（`file.write`、`paper.move`）；不公开的操作为 `unspecified`。
+- `since`：契约代次，由 stability 推出：internal 为 `"0"`，experimental / stable 为 `"1"`。
+
+stable 集合由测试 `stable_set_is_the_v0_allowlist` 锁定：
+
+- `vault:read`：`vault.list`、`vault.search`、`paper.list`、`paper.get`、`paper.paths`、`paper.notes.get`、`paper.tag.list`、`file.list`、`file.read`、`layout.list`、`layout.get`、`page.read`
+- `catalog:write`：`paper.set_meta`、`paper.set_read`、`paper.tag.add`、`paper.tag.rm`、`paper.tag.set`
+- `vault:notes:write`：`paper.notes.write`
+- `vault:write`：`file.write`、`paper.move`
+
+experimental 只有 `paper.notes.fetch`。删除、导入、`mark.*`、`ui.*`、`file.move` 都是 internal；`table.*` 虽标了权限，也仍是 internal。
+
+消费方：
+
+- **CLI `agentero describe`**：不带参数时列出 `OpSummary`，其中不含 stability / permission / since；`describe <id>` 返回完整 `OpSpec`。`cli/src/main.rs` 的测试 `stable_ops_cli_paths_match_registered_commands` 检查每个 stable op 的 `cli` 路径都已注册到 clap。
+- **MCP**：工具实现不读 catalog；`agentero://agent-invariants` 取自 `invariants.rs`。`crates/agentero-mcp/src/tools.rs` 的测试 `stable_ops_mcp_tools_match_registered_names` 保证 stable 且标了 MCP surface 的 op，其 `mcpTool` 一定是已注册的工具名。
+- **插件 data API**：`src-tauri/src/integration/plugins/broker.rs` 的 `authorize` 先调用 `ops::get`，非 stable 返回 `plugin_operation_denied`；再拿 `permission` 的 wire 值和插件已授予的权限比对，缺少则返回 `plugin_permission_denied`。通过后才进入 broker 自己的闭集分派；非 `vault:read` 操作成功后发 `plugins:data-changed`。权限表见 [plugins.md](plugins.md)。`paper.set_meta` 虽是 stable / `catalog:write`，broker 目前没有对应分支，插件调用会得到 `plugin_operation_denied`。
+
 ## 代码
 
 `crates/agentero-mcp/`：`McpController` + Streamable HTTP（`rmcp`）+ tools/resource。论文工具直接调 `agentero-core` 的 catalog、import、vault、`pdf::layout_index`；全文搜索在 `agentero-core` 的 `features::markdown::search`；`file_*` 复用 Vault 路径检查与原子写，支持 UTF-8 文本和 Base64 二进制写入；读取仍限文本。桌面侧 `src-tauri/src/integration/mcp/` 只留 Tauri 命令、状态事件、ChatGPT 隧道，以及导入后续任务、双链索引、删除取消任务、`mcpExposePaperText` 这些宿主钩子。CLI 入口是 `agentero mcp serve`。
