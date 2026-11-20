@@ -615,7 +615,7 @@ agentero paper open papers/nlp/attention --json
 
 `paper open` 先按优先 path、其次 id 解析论文（与 `paper get` 同一 ref 规则，多 shelf 同 id 时返回 `paper_ambiguous`），再投递 `open-paper` 动作。`AGENTERO_OPEN_DRY_RUN=1` 只校验并打印 `action` / `path` / `window` / `url`，不触达桌面 App（仍会校验路径与窗口名）。
 
-> `ui open/close` 的 path 是 **vault-relative**（与 `openVaultRel` 一致），Vault 由 `--vault` / `AGENTERO_VAULT` / 目录上溯 / 默认 Vault 解析；`ui window` 不需要 Vault。一次 CLI 调用经多个通道到达桌面时只处理一次。再次执行同一命令仍会发送一个新请求。
+> `ui open/close` 的 path 是 **vault-relative**（与 `openVaultRel` 一致），Vault 由 `--vault` / `AGENTERO_VAULT` / 目录上溯 / 默认 Vault 解析；`ui window` 不需要 Vault。一次 CLI 调用经多个通道到达桌面时只处理一次。再次执行同一命令仍会发送一个新请求。不带投递 id 的请求（旧版 CLI）1 秒内连续重复同一内容时只处理第一次。应用未消费的请求最多排队 32 个，超出时丢弃最早的并记 WARN 日志。
 
 #### 触发运行中窗口的控件
 

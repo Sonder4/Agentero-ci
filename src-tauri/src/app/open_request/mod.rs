@@ -51,15 +51,33 @@ impl PendingDesktopActions {
 }
 
 /// Remember each CLI delivery while its request file can still be consumed.
+/// Requests without a delivery id (older CLIs) arrive on the same parallel
+/// channels, so an identical payload repeated within a second is collapsed.
 #[cfg(feature = "desktop")]
 #[derive(Default)]
-pub struct RecentUiDeliveries(Mutex<HashMap<uuid::Uuid, Instant>>);
+pub struct RecentUiDeliveries {
+    ids: Mutex<HashMap<uuid::Uuid, Instant>>,
+    last_unidentified: Mutex<Option<(UiRequestPayload, Instant)>>,
+}
 
 #[cfg(feature = "desktop")]
 impl RecentUiDeliveries {
-    fn accept(&self, id: uuid::Uuid) -> bool {
-        let mut recent = self.0.lock().unwrap_or_else(|error| error.into_inner());
+    fn accept(&self, payload: &UiRequestPayload) -> bool {
         let now = Instant::now();
+        let Some(id) = payload.delivery_id else {
+            let mut last = self
+                .last_unidentified
+                .lock()
+                .unwrap_or_else(|error| error.into_inner());
+            if matches!(&*last, Some((previous, at))
+                if previous == payload && now.duration_since(*at) < Duration::from_secs(1))
+            {
+                return false;
+            }
+            *last = Some((payload.clone(), now));
+            return true;
+        };
+        let mut recent = self.ids.lock().unwrap_or_else(|error| error.into_inner());
         recent.retain(|_, accepted| now.duration_since(*accepted) < Duration::from_secs(125));
         if let std::collections::hash_map::Entry::Vacant(entry) = recent.entry(id) {
             entry.insert(now);
@@ -109,10 +127,10 @@ pub fn handle_ui_request<R: Runtime>(
     req: UiRequestPayload,
 ) -> Result<UiRequestPayload, AppError> {
     let mut payload = validate_ui_request(req)?;
-    if let Some(id) = payload.delivery_id.take() {
-        if !app.state::<RecentUiDeliveries>().accept(id) {
-            return Ok(payload);
-        }
+    let accepted = app.state::<RecentUiDeliveries>().accept(&payload);
+    payload.delivery_id = None;
+    if !accepted {
+        return Ok(payload);
     }
 
     if payload.action == UI_ACTION_OPEN_WINDOW {

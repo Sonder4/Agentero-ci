@@ -89,6 +89,9 @@ pub struct VaultOpenPayload {
     pub path: String,
 }
 
+/// Most UI requests kept while no renderer drains the queue.
+const MAX_PENDING_UI_REQUESTS: usize = 32;
+
 /// Validated UI requests waiting for the frontend to consume.
 #[derive(Default)]
 pub struct PendingUiRequest {
@@ -100,8 +103,18 @@ impl PendingUiRequest {
         Self::default()
     }
 
+    /// Queue a request; when full, the oldest request is dropped and logged.
     pub fn set(&self, payload: UiRequestPayload) {
         if let Ok(mut guard) = self.pending.lock() {
+            if guard.len() >= MAX_PENDING_UI_REQUESTS {
+                if let Some(dropped) = guard.pop_front() {
+                    log::warn!(
+                        target: "agentero::op",
+                        "ui request queue full; dropped action={}",
+                        dropped.action
+                    );
+                }
+            }
             guard.push_back(payload);
         }
     }
