@@ -530,6 +530,17 @@ export const DockWorkspace = memo(
 			onVisibleRef.current(visiblePanelIds(api));
 		}, []);
 
+		const revealActiveTab = useCallback((api: DockviewApi) => {
+			const id = api.activePanel?.id;
+			if (!id) return;
+			const tab = workspaceRootRef.current
+				?.querySelector(
+					`.dv-tabs-container [data-panel-id="${CSS.escape(id)}"]`,
+				)
+				?.closest(".dv-tab");
+			tab?.scrollIntoView({ block: "nearest", inline: "nearest" });
+		}, []);
+
 		const endSync = useCallback(
 			(api: DockviewApi) => {
 				requestAnimationFrame(() => {
@@ -557,11 +568,12 @@ export const DockWorkspace = memo(
 						api.exitMaximizedGroup();
 					}
 					onActiveRef.current(api.activePanel?.id ?? null);
+					revealActiveTab(api);
 					publishVisiblePanels(api);
 					scheduleLayoutSave(api);
 				});
 			},
-			[publishVisiblePanels, scheduleLayoutSave],
+			[publishVisiblePanels, revealActiveTab, scheduleLayoutSave],
 		);
 
 		const keepSet = useMemo(() => new Set(keepMountedIds), [keepMountedIds]);
@@ -894,6 +906,7 @@ export const DockWorkspace = memo(
 					api.onDidActivePanelChange((ev) => {
 						if (syncingRef.current) return;
 						onActiveRef.current(ev.panel?.id ?? null);
+						requestAnimationFrame(() => revealActiveTab(api));
 						publishVisiblePanels(api);
 					}),
 					api.onDidMaximizedGroupChange((event) => {
@@ -938,7 +951,13 @@ export const DockWorkspace = memo(
 					syncPanels(api);
 				}
 			},
-			[endSync, publishVisiblePanels, scheduleLayoutSave, syncPanels],
+			[
+				endSync,
+				publishVisiblePanels,
+				revealActiveTab,
+				scheduleLayoutSave,
+				syncPanels,
+			],
 		);
 
 		// Title + persist params + renderer channel (mode/path without full membership).
