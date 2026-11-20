@@ -285,6 +285,7 @@ export function CommandPalette({
 										<CommandItem
 											key={cmd.id}
 											value={`cmd:${cmd.id}`}
+											data-ui-action={`palette.command.${cmd.id}`}
 											onSelect={() => runCommand(cmd)}
 										>
 											<CommandIcon id={cmd.id} />

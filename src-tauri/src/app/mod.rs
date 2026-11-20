@@ -259,7 +259,9 @@ pub fn run() {
 
     #[cfg(feature = "desktop")]
     {
-        builder = builder.manage(crate::app::open_request::PendingDesktopActions::default());
+        builder = builder
+            .manage(crate::app::open_request::PendingDesktopActions::default())
+            .manage(crate::app::open_request::RecentUiDeliveries::default());
     }
 
     #[cfg(not(target_os = "ios"))]

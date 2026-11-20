@@ -17,6 +17,7 @@ use crate::core::error::AppError;
 use std::path::Path;
 #[cfg(feature = "desktop")]
 use std::{
+    collections::HashMap,
     sync::Mutex,
     time::{Duration, Instant},
 };
@@ -46,6 +47,26 @@ impl PendingDesktopActions {
             .extract_if(.., |(_, request)| request.window.as_deref() == Some(label))
             .map(|(_, request)| request)
             .collect()
+    }
+}
+
+/// Remember each CLI delivery while its request file can still be consumed.
+#[cfg(feature = "desktop")]
+#[derive(Default)]
+pub struct RecentUiDeliveries(Mutex<HashMap<uuid::Uuid, Instant>>);
+
+#[cfg(feature = "desktop")]
+impl RecentUiDeliveries {
+    fn accept(&self, id: uuid::Uuid) -> bool {
+        let mut recent = self.0.lock().unwrap_or_else(|error| error.into_inner());
+        let now = Instant::now();
+        recent.retain(|_, accepted| now.duration_since(*accepted) < Duration::from_secs(125));
+        if let std::collections::hash_map::Entry::Vacant(entry) = recent.entry(id) {
+            entry.insert(now);
+            true
+        } else {
+            false
+        }
     }
 }
 
@@ -87,7 +108,12 @@ pub fn handle_ui_request<R: Runtime>(
     app: &AppHandle<R>,
     req: UiRequestPayload,
 ) -> Result<UiRequestPayload, AppError> {
-    let payload = validate_ui_request(req)?;
+    let mut payload = validate_ui_request(req)?;
+    if let Some(id) = payload.delivery_id.take() {
+        if !app.state::<RecentUiDeliveries>().accept(id) {
+            return Ok(payload);
+        }
+    }
 
     if payload.action == UI_ACTION_OPEN_WINDOW {
         // `app::window` is compiled out on iOS; named window targets only
@@ -127,21 +153,6 @@ pub fn handle_ui_request<R: Runtime>(
         trunc(payload.window.as_deref().unwrap_or(""))
     );
     Ok(payload)
-}
-
-/// Stable dedupe key for a UI request (watcher double-write guard).
-#[cfg(feature = "desktop")]
-fn ui_request_key(req: &UiRequestPayload) -> String {
-    format!(
-        "{}|{}|{}|{}|{}|{}|{}",
-        req.action,
-        req.vault_path.as_deref().unwrap_or(""),
-        req.path.as_deref().unwrap_or(""),
-        req.window.as_deref().unwrap_or(""),
-        req.section.as_deref().unwrap_or(""),
-        req.direction.as_deref().unwrap_or(""),
-        req.reference.as_deref().unwrap_or("")
-    )
 }
 
 /// Emit the shared `vault:open-error` toast payload.
@@ -256,7 +267,7 @@ fn trunc(s: &str) -> String {
     if s.len() <= MAX {
         s.to_string()
     } else {
-        format!("{}…", &s[..MAX])
+        format!("{}…", &s[..s.floor_char_boundary(MAX)])
     }
 }
 
@@ -265,7 +276,6 @@ fn trunc(s: &str) -> String {
 pub fn spawn_cli_open_request_watcher<R: Runtime>(app: AppHandle<R>) {
     tauri::async_runtime::spawn(async move {
         let mut last_handled: Option<String> = None;
-        let mut last_ui: Option<String> = None;
         loop {
             tokio::time::sleep(Duration::from_millis(400)).await;
             let mut local_actions = Vec::new();
@@ -321,21 +331,9 @@ pub fn spawn_cli_open_request_watcher<R: Runtime>(app: AppHandle<R>) {
                 }
             }
             if let Some(req) = take_cli_ui_request_file() {
-                let key = ui_request_key(&req);
-                if last_ui.as_deref() != Some(key.as_str()) {
-                    match handle_ui_request(&app, req) {
-                        Ok(p) => {
-                            last_ui = Some(ui_request_key(&p));
-                        }
-                        Err(e) => {
-                            log::warn!(
-                                target: "agentero::op",
-                                "cli ui request file failed key={} error={e}",
-                                trunc(&key)
-                            );
-                            emit_open_error(&app, &e.to_string());
-                        }
-                    }
+                if let Err(e) = handle_ui_request(&app, req) {
+                    log::warn!(target: "agentero::op", "cli ui request file failed error={e}");
+                    emit_open_error(&app, &e.to_string());
                 }
             }
         }

@@ -13,7 +13,7 @@ import { events, type UiRequestPayload } from "@/lib/core/bindings";
 import { errorText } from "@/lib/core/error";
 import { notifyError } from "@/lib/core/notify";
 import { isTauri } from "@/lib/core/tauri";
-import { listenEventSafe } from "@/lib/core/tauri-events";
+import { toSafeDisposer } from "@/lib/core/tauri-events";
 import { isDesktopUiAction } from "@/lib/shell/commands/desktop-ui-actions";
 import { openLocalVaultPath } from "@/lib/vault/actions";
 import { joinVaultPath } from "@/lib/vault/path";
@@ -137,50 +137,33 @@ export function useUiRequest(): void {
 	useEffect(() => {
 		if (!isTauri()) return;
 		let cancelled = false;
-		/** In-flight key so event + pending take do not double-open. */
-		let inflight: string | null = null;
-		let generation = 0;
-
-		const handle = async (payload: UiRequestPayload | null | undefined) => {
-			if (!payload?.action || isDesktopUiAction(payload.action) || cancelled)
-				return;
-			const key = JSON.stringify(payload);
-			if (inflight === key) return;
-			const gen = ++generation;
-			inflight = key;
-			try {
-				// Host emits and also queues pending; drain the concurrent pair.
-				try {
-					await takePendingUiRequest();
-				} catch {
-					// Older Host or no pending — fine.
-				}
-				if (cancelled || gen !== generation) return;
-				await dispatch(payload);
-			} catch (error) {
-				notifyError(errorText(error));
-			} finally {
-				if (gen === generation) {
-					inflight = null;
-				}
-			}
+		let pending = Promise.resolve();
+		const drain = () => {
+			pending = pending
+				.then(async () => {
+					while (!cancelled) {
+						const request = await takePendingUiRequest();
+						if (!request || cancelled) return;
+						try {
+							await dispatch(request);
+						} catch (error) {
+							notifyError(errorText(error));
+						}
+					}
+				})
+				.catch((error) => {
+					if (!cancelled) notifyError(errorText(error));
+				});
 		};
 
-		const off = listenEventSafe(events.uiRequest, (payload) => {
-			void handle(payload);
+		// Subscribe first, then drain requests queued before the renderer mounted.
+		const subscription = events.uiRequest.listen(({ payload }) => {
+			if (!isDesktopUiAction(payload.action)) drain();
 		});
-
-		// Startup race: Host may have queued a request before we listened.
-		void (async () => {
-			try {
-				const pending = await takePendingUiRequest();
-				if (!cancelled && pending) {
-					await handle(pending);
-				}
-			} catch {
-				// Non-fatal when the command is unavailable (older Host).
-			}
-		})();
+		const off = toSafeDisposer(subscription);
+		void subscription.then(drain).catch((error) => {
+			if (!cancelled) notifyError(errorText(error));
+		});
 
 		return () => {
 			cancelled = true;

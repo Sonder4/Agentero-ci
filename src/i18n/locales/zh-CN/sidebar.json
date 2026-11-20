@@ -383,6 +383,7 @@
 		"useParent": "使用上级文件夹",
 		"selectAll": "全选",
 		"selectNone": "清空",
+		"folderFilterLabel": "按 Zotero 文件夹筛选",
 		"folderFilterHint": "选择文件夹会包含其所有子文件夹中的条目。",
 		"unfiled": "(未分类)",
 		"papers": "论文与笔记",

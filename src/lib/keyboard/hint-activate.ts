@@ -7,11 +7,14 @@
  * dropdown never opened. Dispatch the full pointer → mouse → click sequence
  * instead: click-only triggers still work, pointerdown triggers now open.
  */
-export function activateHintTarget(element: HTMLElement): void {
+export function activateHintTarget(
+	element: HTMLElement,
+	point?: { x: number; y: number },
+): void {
 	element.focus({ preventScroll: true });
 	const rect = element.getBoundingClientRect();
-	const x = rect.left + rect.width / 2;
-	const y = rect.top + rect.height / 2;
+	const x = point?.x ?? rect.left + rect.width / 2;
+	const y = point?.y ?? rect.top + rect.height / 2;
 	const base = {
 		bubbles: true,
 		cancelable: true,

@@ -597,7 +597,12 @@ export function ZoteroMigrateDialog({
 													}
 													disabled={busy}
 												>
-													<SelectTrigger className="w-56 shrink-0">
+													<SelectTrigger
+														aria-label={t(
+															"sidebar:zoteroMigrate.folderFilterLabel",
+														)}
+														className="w-56 shrink-0"
+													>
 														<SelectValue />
 													</SelectTrigger>
 													<SelectContent>

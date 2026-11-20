@@ -152,7 +152,11 @@ function AppearancePaneInner({
 						value={theme}
 						onValueChange={(v) => setThemePref(v as ThemePreference)}
 					>
-						<SelectTrigger size="sm" className="min-w-[120px]">
+						<SelectTrigger
+							aria-label={t("appearance.themeLabel")}
+							size="sm"
+							className="min-w-[120px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -263,7 +267,11 @@ function AppearancePaneInner({
 						value={locale}
 						onValueChange={(v) => patch({ locale: v as LocalePreference })}
 					>
-						<SelectTrigger size="sm" className="min-w-[120px]">
+						<SelectTrigger
+							aria-label={t("appearance.languageLabel")}
+							size="sm"
+							className="min-w-[120px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>

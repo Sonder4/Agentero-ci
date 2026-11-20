@@ -20,6 +20,7 @@
 use crate::error::AppError;
 use crate::paths::agentero_config_dir;
 use serde::{Deserialize, Serialize};
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -88,10 +89,10 @@ pub struct VaultOpenPayload {
     pub path: String,
 }
 
-/// Last validated UI request waiting for the frontend to consume.
+/// Validated UI requests waiting for the frontend to consume.
 #[derive(Default)]
 pub struct PendingUiRequest {
-    pending: Mutex<Option<UiRequestPayload>>,
+    pending: Mutex<VecDeque<UiRequestPayload>>,
 }
 
 impl PendingUiRequest {
@@ -101,12 +102,12 @@ impl PendingUiRequest {
 
     pub fn set(&self, payload: UiRequestPayload) {
         if let Ok(mut guard) = self.pending.lock() {
-            *guard = Some(payload);
+            guard.push_back(payload);
         }
     }
 
     pub fn take(&self) -> Option<UiRequestPayload> {
-        self.pending.lock().ok().and_then(|mut g| g.take())
+        self.pending.lock().ok().and_then(|mut g| g.pop_front())
     }
 }
 
@@ -135,9 +136,18 @@ pub struct UiRequestPayload {
     /// `split` reference panel (Vault-relative path).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub reference: Option<String>,
+    // Shared by CLI delivery channels. The Host consumes it before emitting.
+    #[specta(skip)]
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub delivery_id: Option<uuid::Uuid>,
 }
 
 impl UiRequestPayload {
+    pub fn with_delivery_id(mut self) -> Self {
+        self.delivery_id = Some(uuid::Uuid::new_v4());
+        self
+    }
+
     pub fn open_paper(vault_path: String, path: String) -> Self {
         Self::with_path(UI_ACTION_OPEN_PAPER, vault_path, path)
     }
@@ -159,6 +169,7 @@ impl UiRequestPayload {
             section,
             direction: None,
             reference: None,
+            delivery_id: None,
         }
     }
 
@@ -176,6 +187,7 @@ impl UiRequestPayload {
             section: None,
             direction,
             reference,
+            delivery_id: None,
         }
     }
 
@@ -193,6 +205,7 @@ impl UiRequestPayload {
             section: occurrence.map(|index| index.to_string()),
             direction: None,
             reference: Some(uuid::Uuid::new_v4().to_string()),
+            delivery_id: None,
         }
     }
 
@@ -205,6 +218,7 @@ impl UiRequestPayload {
             section: None,
             direction: None,
             reference: None,
+            delivery_id: None,
         }
     }
 }
@@ -308,6 +322,9 @@ pub fn ui_deep_link_url(req: &UiRequestPayload) -> String {
         if let Some(v) = req.reference.as_deref() {
             q.append_pair("reference", v);
         }
+        if let Some(id) = req.delivery_id {
+            q.append_pair("deliveryId", &id.to_string());
+        }
     }
     url.to_string()
 }
@@ -348,6 +365,10 @@ pub fn parse_ui_url(raw: &str) -> Result<UiRequestPayload, AppError> {
         section: param("section"),
         direction: param("direction"),
         reference: param("reference"),
+        delivery_id: param("deliveryId")
+            .map(|id| uuid::Uuid::parse_str(&id))
+            .transpose()
+            .map_err(|_| AppError::message("invalid UI delivery ID"))?,
     })
 }
 
@@ -531,19 +552,8 @@ pub fn take_cli_open_request_file() -> Option<PathBuf> {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 struct CliUiRequestFile {
-    action: String,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    vault_path: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    path: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    window: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    section: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    direction: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    reference: Option<String>,
+    #[serde(flatten)]
+    request: UiRequestPayload,
     /// Unix epoch seconds when the CLI wrote the request.
     ts: u64,
 }
@@ -685,13 +695,7 @@ pub fn write_cli_ui_request(req: &UiRequestPayload) -> Result<PathBuf, AppError>
         .map(|d| d.as_secs())
         .unwrap_or(0);
     let body = CliUiRequestFile {
-        action: validated.action,
-        vault_path: validated.vault_path,
-        path: validated.path,
-        window: validated.window,
-        section: validated.section,
-        direction: validated.direction,
-        reference: validated.reference,
+        request: validated,
         ts,
     };
     let json = serde_json::to_string_pretty(&body)
@@ -718,16 +722,7 @@ pub fn take_cli_ui_request_file() -> Option<UiRequestPayload> {
         );
         return None;
     }
-    validate_ui_request(UiRequestPayload {
-        action: req.action,
-        vault_path: req.vault_path,
-        path: req.path,
-        window: req.window,
-        section: req.section,
-        direction: req.direction,
-        reference: req.reference,
-    })
-    .ok()
+    validate_ui_request(req.request).ok()
 }
 
 #[cfg(test)]

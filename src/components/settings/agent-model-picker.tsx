@@ -225,7 +225,11 @@ export function AgentModelSelects({
 						}
 					}}
 				>
-					<SelectTrigger size="sm" className="min-w-[200px] max-w-[280px]">
+					<SelectTrigger
+						aria-label={agentLabel}
+						size="sm"
+						className="min-w-[200px] max-w-[280px]"
+					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
@@ -252,7 +256,11 @@ export function AgentModelSelects({
 						});
 					}}
 				>
-					<SelectTrigger size="sm" className="min-w-[200px] max-w-[280px]">
+					<SelectTrigger
+						aria-label={modelLabel}
+						size="sm"
+						className="min-w-[200px] max-w-[280px]"
+					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>

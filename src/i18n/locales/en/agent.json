@@ -92,6 +92,7 @@
 		"openSettings": "Open Agent settings"
 	},
 	"composer": {
+		"inputLabel": "Agent prompt",
 		"placeholder": "How can I help you today?",
 		"queueLabel": "Queued",
 		"queueRemove": "Remove from queue",

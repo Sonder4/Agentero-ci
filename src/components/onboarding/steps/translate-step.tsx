@@ -230,7 +230,11 @@ export function TranslateStep({
 					<ArrowLeft className="size-4" />
 				</Button>
 				<Select value={tr.provider} onValueChange={onProviderChange}>
-					<SelectTrigger size="sm" className="w-full max-w-[180px]">
+					<SelectTrigger
+						aria-label={t("settings:translate.provider.label")}
+						size="sm"
+						className="w-full max-w-[180px]"
+					>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent className="max-h-72">

@@ -67,6 +67,7 @@ export const LibraryPaperRow = memo(function LibraryPaperRow({
 	return (
 		<tr
 			data-index={index}
+			aria-label={p.title}
 			data-selected={selected ? "" : undefined}
 			ref={measureRef}
 			// One hint per paper: the row owns the name/title, so `F` labels

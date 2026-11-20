@@ -595,6 +595,9 @@ export const ComposerInlineInput = forwardRef<
 						ref={editorRef}
 						{...{ [AGENT_COMPOSER_INPUT_ATTR]: "" }}
 						role="textbox"
+						aria-label={t("composer.inputLabel")}
+						aria-disabled={disabled || undefined}
+						data-ui-action="agent.composer.input"
 						aria-multiline="true"
 						tabIndex={disabled ? -1 : 0}
 						contentEditable={!disabled}

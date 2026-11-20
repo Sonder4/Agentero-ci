@@ -223,8 +223,9 @@ fn deliver_ui_request(
     // canonical values).
     let req = agentero_core::features::open_request::validate_ui_request(req)
         .map_err(|e| CliError::usage(e.to_string()))?;
-    let url = agentero_core::features::open_request::ui_deep_link_url(&req);
     let dry = is_dry_run();
+    let req = if dry { req } else { req.with_delivery_id() };
+    let url = agentero_core::features::open_request::ui_deep_link_url(&req);
 
     let mut methods: Vec<&'static str> = Vec::new();
     let mut request_file: Option<String> = None;
@@ -376,7 +377,27 @@ fn open_system_url(url: &str) -> Result<(), CliError> {
     #[cfg(target_os = "linux")]
     let (program, args): (&str, Vec<&str>) = ("xdg-open", vec![url]);
     #[cfg(target_os = "windows")]
-    let (program, args): (&str, Vec<&str>) = ("cmd", vec!["/C", "start", "", url]);
+    let program = "cmd";
+    #[cfg(target_os = "windows")]
+    let mut command = {
+        use std::os::windows::process::CommandExt;
+
+        let mut command = Command::new(program);
+        // Expand the URL inside quotes so cmd does not interpret query '&'
+        // separators or the percent escapes inside the environment value.
+        command
+            .args(["/D", "/V:OFF", "/C", "start"])
+            .raw_arg(r#""" "%AGENTERO_CLI_OPEN_URL%""#)
+            .env("AGENTERO_CLI_OPEN_URL", url)
+            .creation_flags(0x08000000); // CREATE_NO_WINDOW
+        command
+    };
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    let mut command = {
+        let mut command = Command::new(program);
+        command.args(args);
+        command
+    };
     #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
     {
         let _ = url;
@@ -386,8 +407,7 @@ fn open_system_url(url: &str) -> Result<(), CliError> {
     }
     #[cfg(any(target_os = "macos", target_os = "linux", target_os = "windows"))]
     {
-        let status = Command::new(program)
-            .args(&args)
+        let status = command
             .stdin(std::process::Stdio::null())
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null())

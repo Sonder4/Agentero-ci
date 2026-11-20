@@ -439,7 +439,11 @@ export function TranslatePane({
 							runConfiguredCommercialProbes();
 						}}
 					>
-						<SelectTrigger size="sm" className="min-w-[200px] max-w-[280px]">
+						<SelectTrigger
+							aria-label={t("translate.provider.label")}
+							size="sm"
+							className="min-w-[200px] max-w-[280px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent className="max-h-72">
@@ -478,7 +482,11 @@ export function TranslatePane({
 							patchTranslate({ targetLang: v as TranslateTargetLang })
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[160px] max-w-[220px]">
+						<SelectTrigger
+							aria-label={t("translate.targetLang.label")}
+							size="sm"
+							className="min-w-[160px] max-w-[220px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -509,7 +517,11 @@ export function TranslatePane({
 							})
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[160px] max-w-[220px]">
+						<SelectTrigger
+							aria-label={t("translate.dictionaryMode.label")}
+							size="sm"
+							className="min-w-[160px] max-w-[220px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -543,7 +555,11 @@ export function TranslatePane({
 							})
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[160px] max-w-[220px]">
+						<SelectTrigger
+							aria-label={t("translate.displayMode.label")}
+							size="sm"
+							className="min-w-[160px] max-w-[220px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>

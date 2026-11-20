@@ -61,7 +61,7 @@ Agent / Reasoning 消息里的 Markdown：`Streamdown` + `PlainTable` / `PlainCo
 - 候选元素：`[data-ui-action]`、`button`、可点击的 `input`、文本输入框、`textarea`、`summary`、`a[href]`、`[contenteditable=true]`、`[data-hint]`，以及 role 为 `button` / `checkbox` / `switch` / `radio` / `tab` / `combobox` / `menuitem*` / `option` / `treeitem` / `textbox` 的元素。
 - 排除：位于 `aria-hidden=true`、`inert`、`aria-disabled=true`、`hidden` 内，`:disabled` 或 `data-disabled`，`visibility` 不是 `visible`，不在视口内，或中心点被其它元素遮住的控件。
 - 范围：焦点在菜单 / 列表框里时只看该菜单；有模态对话框时只看对话框；否则看整个窗口。
-- 名称取值顺序：`aria-labelledby` → `aria-label` → `<label>` / 按钮值 → 可见文字 → `title` → `placeholder`；都没有时显示为 `[role]`。同名控件按出现顺序编号，用 `--occurrence` 选择。
+- 名称取值顺序：`aria-labelledby` → `aria-label` → `<label>` / 按钮值 → 可见文字 → `title` → `placeholder`；都没有时显示为 `[role]`。同名控件按出现顺序编号，用 `--occurrence` 选择。下拉框用 `aria-label`、`aria-labelledby` 或与触发按钮关联的 `<label>` 命名，名称随其用途保持稳定。
 
 **组件写法**：
 

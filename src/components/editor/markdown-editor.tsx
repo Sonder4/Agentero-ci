@@ -77,6 +77,7 @@ import { useShortcutLabel } from "@/hooks/use-shortcut-label";
 import i18n from "@/i18n";
 import { scrollBehavior } from "@/lib/core/motion";
 import { errorMessage, notifyError, notifySuccess } from "@/lib/core/notify";
+import { basenameOf } from "@/lib/core/path";
 import { isTauri } from "@/lib/core/tauri";
 import { cn } from "@/lib/core/utils";
 import {
@@ -1163,6 +1164,11 @@ export const MarkdownEditor = memo(function MarkdownEditor({
 															surface: "markdown",
 														})
 													: {})}
+												aria-label={
+													filePath
+														? basenameOf(filePath)
+														: i18n.t("app:labels.notes")
+												}
 												placeholder={placeholder}
 												readOnly={bodyReadOnly}
 												// `pl-10` leaves room for the block drag handle

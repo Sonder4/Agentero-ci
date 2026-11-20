@@ -63,6 +63,7 @@ const CONTROL_SELECTOR = [
 	"[role=option]",
 	"[role=treeitem]",
 	"[role=textbox]",
+	"select",
 	"[contenteditable=true]",
 	"textarea",
 	"a[href]",
@@ -78,16 +79,19 @@ function controlLabel(element: HTMLElement): string {
 		.filter(Boolean)
 		.join(" ");
 	const inputLabel =
-		element instanceof HTMLInputElement
-			? Array.from(element.labels ?? [], (label) => label.innerText).join(
-					" ",
-				) ||
-				(element.matches("[type=button], [type=submit]") ? element.value : "")
+		"labels" in element
+			? Array.from(
+					(element as HTMLInputElement).labels ?? [],
+					(label) => label.textContent,
+				).join(" ")
 			: "";
 	return (
 		labelledBy ||
 		element.getAttribute("aria-label") ||
 		inputLabel ||
+		(element instanceof HTMLInputElement &&
+			element.matches("[type=button], [type=submit]") &&
+			element.value) ||
 		(!element.isContentEditable &&
 			!(element instanceof HTMLTextAreaElement) &&
 			element.innerText) ||
@@ -99,42 +103,78 @@ function controlLabel(element: HTMLElement): string {
 		.replace(/\s+/g, " ");
 }
 
-function visibleControls() {
+function controlPoint(element: HTMLElement) {
+	const rect = element.getBoundingClientRect();
+	let left = Math.max(0, rect.left);
+	let right = Math.min(document.documentElement.clientWidth, rect.right);
+	let top = Math.max(0, rect.top);
+	let bottom = Math.min(document.documentElement.clientHeight, rect.bottom);
+	const clips = /^(auto|scroll|hidden|clip|overlay)$/;
+	for (
+		let parent = element.parentElement;
+		parent;
+		parent = parent.parentElement
+	) {
+		const { overflowX, overflowY } = getComputedStyle(parent);
+		if (!clips.test(overflowX) && !clips.test(overflowY)) continue;
+		const bounds = parent.getBoundingClientRect();
+		if (clips.test(overflowX)) {
+			left = Math.max(left, bounds.left);
+			right = Math.min(right, bounds.right);
+		}
+		if (clips.test(overflowY)) {
+			top = Math.max(top, bounds.top);
+			bottom = Math.min(bottom, bounds.bottom);
+		}
+	}
+	if (left >= right || top >= bottom) return undefined;
+	for (const y of [0.5, 0.1, 0.9]) {
+		for (const x of [0.5, 0.1, 0.9]) {
+			const point = {
+				x: left + (right - left) * x,
+				y: top + (bottom - top) * y,
+			};
+			if (element.contains(document.elementFromPoint(point.x, point.y)))
+				return point;
+		}
+	}
+}
+
+function availableControls() {
 	const active = document.activeElement;
 	const modal = topKeyboardModal(document);
 	const scope =
 		active?.closest("[role=menu], [role=listbox]") ??
 		(modal?.getAttribute("aria-modal") !== "false" ? modal : null) ??
 		document;
-	const counts = new Map<string, number>();
 	return Array.from(
 		scope.querySelectorAll<HTMLElement>(CONTROL_SELECTOR),
 	).flatMap((element) => {
 		if (
 			element.closest(
-				"[aria-hidden=true], [inert], [aria-disabled=true], [hidden]",
+				"[aria-hidden=true], [inert], [aria-disabled=true], [hidden], [data-disabled]:not([data-disabled=false])",
 			) ||
-			element.matches(":disabled, [data-disabled]") ||
-			getComputedStyle(element).visibility !== "visible"
+			element.matches(":disabled") ||
+			getComputedStyle(element).visibility !== "visible" ||
+			!element.getClientRects().length
 		)
 			return [];
-		const rect = element.getBoundingClientRect();
-		const left = Math.max(0, rect.left);
-		const right = Math.min(window.innerWidth, rect.right);
-		const top = Math.max(0, rect.top);
-		const bottom = Math.min(window.innerHeight, rect.bottom);
-		if (left >= right || top >= bottom) return [];
-		const hit = document.elementFromPoint(
-			(left + right) / 2,
-			(top + bottom) / 2,
-		);
-		if (!element.contains(hit)) return [];
 		const label =
 			controlLabel(element) ||
 			`[${element.getAttribute("role") ?? element.localName}]`;
-		const occurrence = (counts.get(label) ?? 0) + 1;
-		counts.set(label, occurrence);
-		return [{ id: element.dataset.uiAction, label, occurrence, element }];
+		return [{ id: element.dataset.uiAction, label, element }];
+	});
+}
+
+function visibleControls(controls = availableControls()) {
+	const counts = new Map<string, number>();
+	return controls.flatMap((control) => {
+		const point = controlPoint(control.element);
+		if (!point) return [];
+		const key = control.label;
+		const occurrence = (counts.get(key) ?? 0) + 1;
+		counts.set(key, occurrence);
+		return [{ ...control, occurrence, point }];
 	});
 }
 
@@ -144,11 +184,27 @@ async function clickControl(
 	right: boolean,
 ) {
 	const findControls = () => {
-		const controls = visibleControls();
+		const controls = availableControls();
 		const byId = controls.filter((control) => control.id === target);
-		return byId.length
+		const candidates = byId.length
 			? byId
 			: controls.filter((control) => control.label === target);
+		const visible = visibleControls(candidates);
+		const candidate = candidates[0];
+		if (
+			!visible.length &&
+			candidates.length === 1 &&
+			candidate &&
+			index == null
+		) {
+			candidate.element.scrollIntoView({
+				block: "nearest",
+				inline: "nearest",
+				behavior: "instant",
+			});
+			return visibleControls(candidates);
+		}
+		return visible;
 	};
 	let matches = findControls();
 	const deadline = Date.now() + 2000;
@@ -163,19 +219,18 @@ async function clickControl(
 	const control = matches[Number(index ?? 1) - 1];
 	if (!control) throw new Error(`No enabled control matches "${target}".`);
 	if (right) {
-		const { x, y, width, height } = control.element.getBoundingClientRect();
 		control.element.dispatchEvent(
 			new MouseEvent("contextmenu", {
 				bubbles: true,
 				cancelable: true,
 				button: 2,
-				clientX: x + width / 2,
-				clientY: y + height / 2,
+				clientX: control.point.x,
+				clientY: control.point.y,
 			}),
 		);
 		return;
 	}
-	activateHintTarget(control.element);
+	activateHintTarget(control.element, control.point);
 }
 
 function dispatchKey(chord: string) {

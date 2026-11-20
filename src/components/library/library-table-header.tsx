@@ -250,6 +250,7 @@ export const LibraryTableHeader = memo(function LibraryTableHeader({
 												active && "text-foreground",
 											)}
 											onClick={() => onSort(col.key)}
+											data-ui-action={`library.column.sort.${col.key}`}
 											aria-label={t("papersLibrary.sortBy", {
 												column: col.key.startsWith("prop:")
 													? meta.labelKey

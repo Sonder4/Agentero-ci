@@ -383,6 +383,7 @@
 		"useParent": "Use parent folder",
 		"selectAll": "All",
 		"selectNone": "None",
+		"folderFilterLabel": "Filter by Zotero folder",
 		"folderFilterHint": "Selecting a folder includes items in all of its subfolders.",
 		"unfiled": "(Unfiled)",
 		"papers": "Papers and notes",

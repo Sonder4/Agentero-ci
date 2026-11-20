@@ -289,7 +289,12 @@ export function GeneralPane({
 							patch({ paperTreeLabelMode: v as PaperTreeLabelMode })
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.paper-tree-label-mode"
+							aria-label={t("general.paperTreeLabelMode.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -308,7 +313,12 @@ export function GeneralPane({
 							patch({ paperTreeSortMode: v as PaperTreeSortMode })
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.paper-tree-sort-mode"
+							aria-label={t("general.paperTreeSortMode.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -325,7 +335,12 @@ export function GeneralPane({
 						value={settings.paperNoteMode}
 						onValueChange={(v) => patch({ paperNoteMode: v as PaperNoteMode })}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.paper-note-mode"
+							aria-label={t("general.paperNoteMode.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -367,6 +382,7 @@ export function GeneralPane({
 					htmlFor="auto-open-paper-notes"
 				>
 					<Switch
+						data-ui-action="settings.general.auto-open-paper-notes"
 						id="auto-open-paper-notes"
 						checked={settings.autoOpenPaperNotes}
 						onCheckedChange={(v) => patch({ autoOpenPaperNotes: v })}
@@ -377,6 +393,7 @@ export function GeneralPane({
 					htmlFor="auto-ingest"
 				>
 					<Switch
+						data-ui-action="settings.general.auto-ingest"
 						id="auto-ingest"
 						checked={settings.autoIngest}
 						onCheckedChange={(v) => patch({ autoIngest: v })}
@@ -387,6 +404,7 @@ export function GeneralPane({
 					htmlFor="replace-current-tab-on-open-paper"
 				>
 					<Switch
+						data-ui-action="settings.general.replace-current-tab-on-open-paper"
 						id="replace-current-tab-on-open-paper"
 						checked={settings.replaceCurrentTabOnOpenPaper}
 						onCheckedChange={(v) => patch({ replaceCurrentTabOnOpenPaper: v })}
@@ -401,7 +419,12 @@ export function GeneralPane({
 							})
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.auto-update-internal-links"
+							aria-label={t("general.autoUpdateInternalLinks.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -420,7 +443,12 @@ export function GeneralPane({
 							patch({ batchImportConcurrency: Number(value) })
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.batch-import-concurrency"
+							aria-label={t("general.batchImportConcurrency.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -446,6 +474,7 @@ export function GeneralPane({
 					description={t("general.vimMode.description")}
 				>
 					<Switch
+						data-ui-action="settings.general.vim-mode"
 						id="vim-mode"
 						checked={settings.vimMode}
 						onCheckedChange={(checked) => patch({ vimMode: checked })}
@@ -464,7 +493,12 @@ export function GeneralPane({
 							patch({ pdfScrollStrategy: value as PdfScrollStrategy })
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.pdf-scroll-strategy"
+							aria-label={t("general.pdfScrollStrategy.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -486,6 +520,7 @@ export function GeneralPane({
 					}
 				>
 					<Switch
+						data-ui-action="settings.general.pdf-vim-keys"
 						id="pdf-vim-keys"
 						disabled={!settings.vimMode}
 						checked={settings.pdfVimKeys}
@@ -504,7 +539,12 @@ export function GeneralPane({
 							patch({ pdfSpreadMode: value as PdfSpreadMode })
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.pdf-spread-mode"
+							aria-label={t("general.pdfSpreadMode.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -526,7 +566,12 @@ export function GeneralPane({
 							patch({ pdfTranslateTab: value as PdfTranslateTabMode })
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+						<SelectTrigger
+							data-ui-action="settings.general.pdf-translate-tab"
+							aria-label={t("general.pdfTranslateTab.label")}
+							size="sm"
+							className="min-w-[180px] max-w-[240px]"
+						>
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
@@ -546,6 +591,7 @@ export function GeneralPane({
 			<SettingsGroup>
 				<SettingsRow label={t("general.plaza.label")} htmlFor="plaza-enabled">
 					<Switch
+						data-ui-action="settings.general.plaza"
 						id="plaza-enabled"
 						checked={settings.plazaEnabled}
 						onCheckedChange={(v) => patch({ plazaEnabled: v })}

@@ -92,6 +92,7 @@
 		"openSettings": "打开 Agent 设置"
 	},
 	"composer": {
+		"inputLabel": "Agent 输入框",
 		"placeholder": "今天想做些什么？",
 		"queueLabel": "等待发送",
 		"queueRemove": "从队列移除",

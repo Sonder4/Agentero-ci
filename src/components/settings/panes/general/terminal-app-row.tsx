@@ -75,7 +75,11 @@ export function TerminalAppRow({
 			description={empty ? noTerminalHint : undefined}
 		>
 			<Select value={selected} onValueChange={onChange}>
-				<SelectTrigger size="sm" className="min-w-[180px] max-w-[240px]">
+				<SelectTrigger
+					aria-label={t("general.terminalApp.label")}
+					size="sm"
+					className="min-w-[180px] max-w-[240px]"
+				>
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>

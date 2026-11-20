@@ -91,7 +91,11 @@ export function AgentDefaultBlock({
 							Boolean(savingDefaultValue)
 						}
 					>
-						<SelectTrigger size="sm" className="min-w-[220px] max-w-[300px]">
+						<SelectTrigger
+							aria-label={t("agent.defaultAgent.label")}
+							size="sm"
+							className="min-w-[220px] max-w-[300px]"
+						>
 							<SelectValue placeholder={t("agent.defaultAgent.empty")} />
 						</SelectTrigger>
 						<SelectContent>

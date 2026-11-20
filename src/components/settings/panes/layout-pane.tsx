@@ -386,7 +386,11 @@ export function LayoutPane({
 							onValueChange={(v) => setScope(v as ParseResultScope)}
 							disabled={busy}
 						>
-							<SelectTrigger size="sm" className="w-full">
+							<SelectTrigger
+								aria-label={t("layout.clearResults.dialog.scopeLabel")}
+								size="sm"
+								className="w-full"
+							>
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>

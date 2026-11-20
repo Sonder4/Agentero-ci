@@ -615,7 +615,7 @@ agentero paper open papers/nlp/attention --json
 
 `paper open` 先按优先 path、其次 id 解析论文（与 `paper get` 同一 ref 规则，多 shelf 同 id 时返回 `paper_ambiguous`），再投递 `open-paper` 动作。`AGENTERO_OPEN_DRY_RUN=1` 只校验并打印 `action` / `path` / `window` / `url`，不触达桌面 App（仍会校验路径与窗口名）。
 
-> `ui open/close` 的 path 是 **vault-relative**（与 `openVaultRel` 一致），Vault 由 `--vault` / `AGENTERO_VAULT` / 目录上溯 / 默认 Vault 解析；`ui window` 不需要 Vault。
+> `ui open/close` 的 path 是 **vault-relative**（与 `openVaultRel` 一致），Vault 由 `--vault` / `AGENTERO_VAULT` / 目录上溯 / 默认 Vault 解析；`ui window` 不需要 Vault。一次 CLI 调用经多个通道到达桌面时只处理一次。再次执行同一命令仍会发送一个新请求。
 
 #### 触发运行中窗口的控件
 
@@ -638,7 +638,7 @@ agentero ui click chatgpt.quote.attach
 
 - `actions` 列出当前窗口可用的命令、全局快捷键和可见控件。控件有操作 ID 时优先使用 ID。也可使用当前界面语言的完整名称，同名控件用从 1 开始的 `occurrence` 选择。菜单或模态对话框打开时，列表以当前交互范围为准。
 - `shortcut` 按稳定 ID 调用现有快捷键处理器，遵循快捷键开关、平台、焦点和弹层条件。`command` 使用命令面板的 ID 和可用条件。
-- `click` 使用应用内键盘导航已有的控件激活流程，等待目标控件出现最多 2 秒。加 `--right` 触发应用自己的右键菜单。`key` 把按键交给当前焦点的应用端事件处理器，支持 `Ctrl`、`Alt`、`Shift` 和 `Meta` 组合，也能在聚焦的可编辑区执行全选。
+- `click` 使用应用内键盘导航已有的控件激活流程，等待目标控件出现最多 2 秒。唯一匹配的控件若被滚动容器裁出可见区域，按名称或操作 ID 点击会先将其滚入视野。例如可用 `agentero ui click library.column.sort.date` 点击裁出的日期排序按钮。加 `--right` 触发应用自己的右键菜单。`key` 把按键交给当前焦点的应用端事件处理器，支持 `Ctrl`、`Alt`、`Shift` 和 `Meta` 组合，也能在聚焦的可编辑区执行全选。
 - `fill` 替换当前聚焦的应用文本输入框或文本域，触发应用的输入逻辑，支持空值清空。密码和令牌设置使用对应的 `settings` 命令。
 - 默认目标为 `main`，可用 `--window` 显式指定 `settings` 或已打开的应用窗口 label。请求由当前用户的本地目录投递，等待对应窗口挂载后处理。浏览器深链无法投递这些操作。桌面确认动作分派后，界面继续处理对话框和后台任务。测试脚本可再次查询 `ui actions --json` 检查下一步控件。
 - 控件范围覆盖 Agentero 渲染的界面。操作系统标题栏、系统文件对话框、网页 iframe 与 ChatGPT 子 WebView 由各自的宿主接收输入。浏览器原生文本编辑、焦点切换等默认行为仍需要实际按键。
