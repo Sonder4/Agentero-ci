@@ -188,7 +188,7 @@ CI 的 `agentero-tests` 任务运行 Host 与 `agentero-plugin-host` 测试，�
 3. 列出当前窗口可操作的控件：`agentero ui actions --json`（`--window settings` 指定其它窗口）。
 4. 触发：`ui click <id|名称> [--occurrence N]`、`ui fill <文本>`、`ui key <组合键>`、`ui shortcut <id>`、`ui command <命令面板 id>`；打开文档与窗口用 `ui open` / `ui window`。
 5. 再次 `ui actions --json` 确认界面进入下一状态（`ui wait` 实现前，这一步代替等待）。
-6. 截图：`ui screenshot` 实现前，用系统截图工具截取应用窗口。
+6. 截图：`ui screenshot` 实现前，用系统截图工具截取应用窗口（Windows 可用 `PrintWindow` 的 `PW_RENDERFULLCONTENT` 截取 WebView2 内容）。`ui actions` 判定的「可见」只看网页视口，混合 DPI 多屏下视口可能比窗口宽，需以截图为准。
 7. 日志：应用日志目录中的 `agentero.log`（Windows 为 `%LOCALAPPDATA%\com.poco-ai.agentero\logs\`，其它平台为 Tauri `app_log_dir`）。检查本步时间段内有无 `ERROR` / `WARN` 和失败的 `op end … ok=false`。
 
 汇报时列出执行的指令序列、截图和相关日志行；CLI 无法覆盖的步骤（系统对话框、拖拽、视觉细节）单独说明用了什么方式验证。
