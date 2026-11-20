@@ -13,7 +13,167 @@ export const commands = {
 	 *  [`AppSettingsStore::subscribe`] listeners registered by the app assembly
 	 *  (see `app/mod.rs`), fired inside `store.set` with the redacted snapshot.
 	 */
-	settingsSet: (settings: AppSettings_Deserialize) => __TAURI_INVOKE<ApiResult<AppSettings_Serialize>>("settings_set", { settings }),
+	settingsSet: (settings: AppSettings_Deserialize, base: ({
+	/**
+	 *  Preferences formerly stored only in the desktop WebView. Values are
+	 *  JSON objects or arrays owned by the corresponding frontend feature.
+	 */
+	frontendPreferences?: { [key in string]: Json },
+	/**  Null disables a command; absent ids use their default shortcut. */
+	shortcutOverrides?: { [key in string]: ShortcutBinding_Deserialize | null },
+	/**  EasyScholar key for journal ranking and impact-factor lookups. */
+	easyScholarKey?: string,
+	/**  知乎开放平台 Access Secret（内置「知乎」Agent 的直答 / 检索凭证）。 */
+	zhihuAccessSecret?: string,
+	networkProxyEnabled?: boolean,
+	networkProxyUrl?: string,
+	/**
+	 *  EZProxy/WebVPN prefix for paywalled PDF fallback, e.g.
+	 *  `https://webvpn.example.edu/login?url=`. Empty disables the layer.
+	 */
+	institutionProxyPrefix?: string,
+	/**
+	 *  Session cookie sent along with institution proxy requests (pasted from
+	 *  the browser). Empty = no cookie.
+	 */
+	institutionProxyCookie?: string,
+	/**
+	 *  Gateway flavour: `auto` (fingerprint the prefix), `ezproxy` (query
+	 *  passthrough), `wengine` (path-rewriting WebVPN, e.g. ZJU) or
+	 *  `subdomain` (Astraeus-style host mapping). Empty/unknown means `auto`.
+	 */
+	institutionProxyType?: string,
+	paperTreeLabelMode?: string,
+	paperTreeSortMode?: string,
+	/**
+	 *  NOTES.md shell generated on paper import:
+	 *  `standard` | `title-only` | `blank` | `custom` (vault template).
+	 */
+	paperNoteMode?: string,
+	/**
+	 *  Open a paper's NOTES.md in the reading split when a paper is opened.
+	 *  Default on; off opens only the PDF/HTML body.
+	 */
+	autoOpenPaperNotes?: boolean,
+	/**
+	 *  Auto-ingest: adopt bare folders created under `papers/` that hold at
+	 *  least one settled PDF into the library in place (catalog row + NOTES
+	 *  shell + background metadata recognition). Default on.
+	 */
+	autoIngest?: boolean,
+	/**
+	 *  When opening a new paper, close the active tab instead of adding a new one.
+	 *  Default off; useful for users who prefer a single-paper-at-a-time workflow.
+	 */
+	replaceCurrentTabOnOpenPaper?: boolean,
+	autoUpdateInternalLinks?: string,
+	/**
+	 *  Preferred terminal for "Open in Terminal". Empty = system default.
+	 *  Unknown or uninstalled ids fall back at launch time.
+	 */
+	terminalApp?: string,
+	/**  PDF navigation: `vertical` | `horizontal` | `paginated`. */
+	pdfScrollStrategy?: string,
+	/**  Enable single-key Vim navigation on PDF reading surfaces. */
+	pdfVimKeys?: boolean,
+	/**
+	 *  Master switch for Vim-style single-key navigation (PDF + list surfaces).
+	 *  Off keeps plain typing and arrow keys only.
+	 */
+	vimMode?: boolean,
+	/**  Enable the ephemeral F-key global element hint overlay. */
+	hintModeEnabled?: boolean,
+	/**  Subtle in-app sound cues (agent attention / turn done / failure). */
+	soundEnabled?: boolean,
+	/**  PDF page layout: `none` (single page) | `odd` | `even` (two-page spread). */
+	pdfSpreadMode?: string,
+	/**  In-page translate tab: `hover` (default) | `always` | `hidden`. */
+	pdfTranslateTab?: string,
+	libraryColumns?: LibraryColumnPref_Deserialize[],
+	connectorEnabled?: boolean,
+	connectorPort?: number,
+	/**  Loopback Streamable HTTP MCP server. Default off. */
+	mcpEnabled?: boolean,
+	mcpPort?: number,
+	/**
+	 *  Opt-in: expose paper full text (`paper_text_get`) through the MCP
+	 *  server. Default off — external clients only see metadata and NOTES.
+	 */
+	mcpExposePaperText?: boolean,
+	/**
+	 *  OpenAI Secure MCP Tunnel id (`tunnel_` + 32 hex) for the built-in
+	 *  `tunnel-client` supervisor. Empty = never configured.
+	 */
+	mcpTunnelId?: string,
+	/**
+	 *  Runtime (Restricted) control-plane API key. Masked on read like the
+	 *  other commercial keys; the WebView never sees the plaintext.
+	 */
+	mcpTunnelApiKey?: string,
+	batchImportConcurrency?: number,
+	theme?: string,
+	uiTheme?: string,
+	locale?: string,
+	editorFontSize?: number,
+	/**  UI chrome font. Empty = app default. Built-ins: system/serif/mono, else family name. */
+	interfaceFontFamily?: string,
+	/**  Markdown body font. Empty = inherit interface/default. Same vocabulary as interface. */
+	textFontFamily?: string,
+	/**  Monospace font for code / font-mono. Empty = app default mono stack. */
+	monoFontFamily?: string,
+	/**  Deprecated single editor font preset; migrated into `text_font_family` once. */
+	editorFontFamily?: string,
+	/**  Markdown editor body line-height (unitless), typical range 1.4–2.0. */
+	editorLineHeight?: number | null,
+	uiScale?: number | null,
+	showEditorToolbar?: boolean,
+	/**  Body size of wikilink embeds, px before UI scale. Range 12–20, default 13. */
+	wikiEmbedFontSize?: number,
+	/**  Markdown column max width in CSS px. 0 = full pane. Presets only. */
+	markdownMaxWidth?: number,
+	agentPermissionMode?: string,
+	autoPaperReader?: boolean,
+	aiResponseLanguage?: string,
+	agentPersonalPrompt?: string,
+	pdfAsk?: PdfAskSettings,
+	/**
+	 *  Background paper-reader (精读) Agent seat. Empty = follow the default
+	 *  agent and its last picked model.
+	 */
+	paperReader?: PaperReaderSettings,
+	embedding?: EmbeddingSettings,
+	translate?: TranslateSettings,
+	layout?: LayoutSettings,
+	/**  PostHog product analytics opt-out (applies from the next launch). */
+	telemetryEnabled?: boolean,
+	/**  Plaza discovery sources in the sidebar. Default on. */
+	plazaEnabled?: boolean,
+	/**  Plaza source ids hidden from the sidebar / Plaza home (right-click toggle). */
+	plazaHiddenSources?: string[],
+	/**  First-run setup wizard completed. Default false → auto-show on fresh installs. */
+	onboardingDone?: boolean,
+	/**  Post-vault feature tour completed or skipped. Default false → auto-start once. */
+	featureTourDone?: boolean,
+	/**
+	 *  Config reminders the user dismissed with "don't remind me again"
+	 *  (`layout-local-model` | `network-proxy`). Unknown ids are dropped on save.
+	 */
+	dismissedReminders?: string[],
+}) & ({
+	/**
+	 *  Decision-layer provider (System One: jEV / Cloudflare Clef / compatible).
+	 *  The legacy `jev` key is still read for backward compatibility.
+	 */
+	decision?: DecisionSettings,
+} | {
+	/**
+	 *  Decision-layer provider (System One: jEV / Cloudflare Clef / compatible).
+	 *  The legacy `jev` key is still read for backward compatibility.
+	 */
+	jev?: DecisionSettings,
+}) | null) => __TAURI_INVOKE<ApiResult<AppSettings_Serialize>>("settings_set", { settings, base }),
+	/**  Atomically apply frontend preference changes, preserving other settings. */
+	settingsUpdateFrontendPreferences: (updates: FrontendPreferenceUpdate[]) => __TAURI_INVOKE<ApiResult<AppSettings_Serialize>>("settings_update_frontend_preferences", { updates }),
 	/**
 	 *  Detected OS system proxy (Windows "Internet Settings"). Host requests
 	 *  already fall back to it when the app proxy is off; the updater plugin and
@@ -1718,6 +1878,11 @@ export type ApiResult<T> = {
 export type AppSettings = AppSettings_Serialize | AppSettings_Deserialize;
 
 export type AppSettings_Deserialize = {
+	/**
+	 *  Preferences formerly stored only in the desktop WebView. Values are
+	 *  JSON objects or arrays owned by the corresponding frontend feature.
+	 */
+	frontendPreferences?: { [key in string]: Json },
 	/**  Null disables a command; absent ids use their default shortcut. */
 	shortcutOverrides?: { [key in string]: ShortcutBinding_Deserialize | null },
 	/**  EasyScholar key for journal ranking and impact-factor lookups. */
@@ -1873,6 +2038,11 @@ export type AppSettings_Deserialize = {
 };
 
 export type AppSettings_Serialize = {
+	/**
+	 *  Preferences formerly stored only in the desktop WebView. Values are
+	 *  JSON objects or arrays owned by the corresponding frontend feature.
+	 */
+	frontendPreferences: { [key in string]: Json },
 	/**  Null disables a command; absent ids use their default shortcut. */
 	shortcutOverrides: { [key in string]: ShortcutBinding_Serialize | null },
 	/**  EasyScholar key for journal ranking and impact-factor lookups. */
@@ -3408,6 +3578,17 @@ export type FinderServiceStatus = {
 	/**  installed && baked-in bundle matches the current app bundle. */
 	current: boolean,
 	message: string | null,
+};
+
+/**
+ *  An atomic update to one frontend preference. `expected` protects a
+ *  concurrent CLI or desktop edit; migration can insert missing keys only.
+ */
+export type FrontendPreferenceUpdate = {
+	key: string,
+	value: Json | null,
+	expected: Json | null,
+	onlyIfMissing: boolean,
 };
 
 /**  Capability flags so UI / business logic can degrade without guesswork. */

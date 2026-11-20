@@ -8,6 +8,7 @@ import {
 	type UpsertAgentRequest_Deserialize,
 } from "@/lib/core/bindings";
 import { callApi, callApiResult } from "@/lib/core/ipc";
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 import { loadSettings } from "@/lib/settings";
 import type { CatalogAcpStatus, CatalogEntry, ProbeResult } from "./api-types";
@@ -977,7 +978,7 @@ export function listenAgentCollaboration(
 		.listen((message) => handler(message.payload));
 }
 
-const MODEL_PREF_KEY = "agentero-agent-model-pref";
+const MODEL_PREF_KEY = PREFERENCE_STORAGE_KEYS.agentModels;
 
 /** Persist last chosen model id per agent. */
 export function loadModelPref(agentId: string | null): string | null {
@@ -992,7 +993,7 @@ export function saveModelPref(agentId: string, modelId: string): void {
 	writeJsonStorage(MODEL_PREF_KEY, map);
 }
 
-const COLLABORATION_PREF_KEY = "agentero-agent-collaboration-pref";
+const COLLABORATION_PREF_KEY = PREFERENCE_STORAGE_KEYS.agentCollaboration;
 
 /** Persist last chosen collaboration mode (default / plan) per agent. */
 export function loadCollaborationPref(agentId: string | null): string | null {
@@ -1016,7 +1017,7 @@ export function saveCollaborationPref(
 	writeJsonStorage(COLLABORATION_PREF_KEY, map);
 }
 
-const MODEL_FAVORITES_KEY = "agentero-agent-model-favorites";
+const MODEL_FAVORITES_KEY = PREFERENCE_STORAGE_KEYS.agentFavorites;
 
 /** Per-agent ordered list of favorited model ids. */
 export function loadModelFavorites(agentId: string | null): string[] {

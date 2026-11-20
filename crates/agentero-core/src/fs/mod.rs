@@ -5,6 +5,7 @@
 mod dir_link;
 mod local;
 mod path;
+mod sidecar_lock;
 mod store;
 
 pub use dir_link::{
@@ -18,6 +19,7 @@ pub use path::{
     normalize_rel_separators, path_escapes_root, resolve_paper_dir, resolve_vault,
     safe_relative_path, sanitize_vault_rel, vault_relative, FsCaps, FsDirEntry, FsFileMeta,
 };
+pub use sidecar_lock::SidecarLock;
 pub use store::{atomic_write, atomic_write_with, json_store, json_store_with, AtomicOpts};
 
 use crate::error::AppError;

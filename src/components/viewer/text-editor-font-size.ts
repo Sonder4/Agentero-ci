@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * Text editor font size preference (independent of app theme).
  * Persisted per install and broadcast so every open editor follows the switch.
@@ -5,7 +6,8 @@
 
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 
-const TEXT_EDITOR_FONT_SIZE_STORAGE_KEY = "agentero-text-editor-font-size";
+const TEXT_EDITOR_FONT_SIZE_STORAGE_KEY =
+	PREFERENCE_STORAGE_KEYS.textEditorFontSize;
 export const TEXT_EDITOR_FONT_SIZE_EVENT = "agentero:text-editor-font-size";
 
 const DEFAULT_FONT_SIZE = 14;
@@ -35,4 +37,19 @@ export function writeTextEditorFontSize(next: TextEditorFontSize): void {
 			}),
 		);
 	}
+}
+
+if (typeof window !== "undefined") {
+	window.addEventListener("agentero:frontend-preference-changed", (event) => {
+		if (
+			(event as CustomEvent<{ key: string }>).detail?.key ===
+			TEXT_EDITOR_FONT_SIZE_STORAGE_KEY
+		) {
+			window.dispatchEvent(
+				new CustomEvent(TEXT_EDITOR_FONT_SIZE_EVENT, {
+					detail: readTextEditorFontSize(),
+				}),
+			);
+		}
+	});
 }

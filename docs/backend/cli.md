@@ -29,10 +29,147 @@ Headless Vault / Catalog / Wiki 接口；**不含** BYOA / paper-reader。
 | `layout` | 侧栏同构版面索引：`list` / `get` / `analyze`（figure / table / algorithm / formula / section / paragraph）；`analyze` 用远程 Provider 生成 sidecar |
 | `mark` | 阅读标注：`list` / `get` / `add`（`--quote` 文字锚点或 `--region` 区域锚点）/ `update` / `delete` |
 | `ui` | 桌面工作区/窗口操作：`open`（打开或聚焦文档/文件夹/论文）/ `close`（关闭面板）/ `window`（聚焦原生子窗口）/ `split`（分屏）；均走 `agentero://ui` 深链 + 请求文件 |
+| `settings` | 读取和修改应用、Agent、插件、Vault Doctor 与 CLI 配置 |
 | `translate` | 免费机器翻译纯文本（无需 API Key，不读桌面 settings） |
 | `table` | 科研表格行操作：`query` / `upsert` / `update-cells`（与桌面网格共用 `*.table.json`） |
 
 稳定 `--json` 输出，供脚本与外部 Agent 组合。JSON 默认 **compact 单行**（省 token），`--pretty` 恢复缩进美化（[#367](https://github.com/poco-ai/Agentero/issues/367)）。
+
+### 应用设置（`settings`）
+
+`agentero settings` 默认操作与桌面端共用的 `$XDG_CONFIG_HOME/agentero/settings.json`，通过
+JSON Pointer 访问嵌套配置。也可以使用 `--scope` 选择其他配置文件：
+
+| Scope | 文件 | 备注 |
+|---|---|---|
+| `settings` | `settings.json` | 应用设置，读取时补充已知默认值 |
+| `agents` | `agents.json` | Agent 注册、命令、参数、环境变量及默认 Agent |
+| `plugins` | `plugins.json` | 已安装插件及按 Vault 保存的授权和参数 |
+| `doctor` | `<vault>/.agentero/doctor.json` | 需指定 `--vault` 或使用默认 Vault |
+| `cli` | `config.toml` | CLI 默认 Vault、Translator URL、已知 Vault；按 JSON 值输入，落盘为 TOML |
+
+云同步使用已有的 `agentero sync configure`，不通过 `settings` 修改。各 scope 是独立文件；
+`replace` 和 `reset` 会替换或清空所选文件内容，请先检查 scope 与备份。
+
+```bash
+# 当前共享文件、是否存在、内容 revision
+agentero settings path --json
+
+# 读取完整设置或单个字段（输出默认掩码密钥）
+agentero settings get --json
+agentero settings get /theme --json
+agentero settings get translate.provider --json
+
+# 标量、对象、数组使用同一入口
+agentero settings set /theme dark --json
+agentero settings set /connectorPort 23200 --json
+agentero settings set /plazaHiddenSources '["cool-papers"]' --json
+
+# 深度合并多个字段；数组整体替换，对象逐层合并
+agentero settings patch --data '{
+  "networkProxyEnabled": true,
+  "pdfAsk": {"agentId": "codex", "modelId": "gpt-6.2-sol"}
+}' --json
+
+# 删除覆盖值，下一次 Host 读取时恢复该字段的默认行为
+agentero settings unset /theme --json
+
+# 键路径发现
+agentero settings keys --json
+agentero settings keys /translate --json
+
+# Agent 的命令、参数和环境变量；先通过 keys/get 查找实际数组下标
+agentero settings --scope agents get /agents --json
+agentero settings --scope agents set /agents/0/args '["--help"]' --parse-json
+
+# 各 Agent 记住的模型、推理强度和协作模式
+agentero settings set /frontendPreferences/agentModels/codex gpt-6.2-sol
+agentero settings set /frontendPreferences/agentReasoning/codex high
+agentero settings set /frontendPreferences/agentCollaboration/codex plan
+
+# Windows 路径先换为正斜杠，JSON Pointer 内的 / 写为 ~1
+agentero settings set '/frontendPreferences/texProjects/projects/C:~1vault~1thesis~1main.tex/autoBuild' never
+agentero settings set /frontendPreferences/pdfPaperTone sepia
+
+# 查看插件与指定 Vault 的 Doctor 配置
+agentero settings --scope plugins get --json
+agentero --vault /path/to/vault settings --scope doctor get --json
+
+# CLI 自身配置和默认 Vault
+agentero settings --scope cli set /translator_base_url http://localhost:1969
+agentero vault use /path/to/vault
+agentero vault forget /path/to/vault  # 仅从 CLI 清单移除，不删除 Vault
+```
+
+| 子命令 | 行为 |
+|---|---|
+| `path` | 输出共享 `settings.json` 绝对路径与内容 revision |
+| `get [POINTER]` | 读取根或子树；默认把已识别密钥和 Cookie 替换为同长度 `*` |
+| `set POINTER [VALUE]` | 设置一个字段；自动创建缺失父对象，并支持 `--file` / `--stdin` |
+| `unset POINTER` | 删除一个字段，不对根生效 |
+| `patch --data/--file/--stdin` | 对当前设置做递归对象合并 |
+| `replace --yes ...` | 原子替换整个 `settings.json` |
+| `reset --yes` | 写成 `{}`，恢复 Agentero 默认值 |
+| `keys [POINTER]` | 输出叶子 JSON Pointer；`settings` scope 包含应用已知默认字段 |
+
+路径以 `/` 开头时按 JSON Pointer 解析，否则按点路径解析。例如
+`/translate/providerConfigs/deepl/apiKey` 与
+`translate.providerConfigs.deepl.apiKey` 等价。包含点号的 key 应使用 JSON Pointer，
+`~0` / `~1` 转义遵循 RFC 6901。
+
+值按以下规则解析：
+
+- 合法 JSON 标量、数组和对象按 JSON 写入。`dark` 这类裸文本回退为字符串。
+- `--string` 强制保存完整输入为字符串，`--parse-json` 强制 JSON 语法，`--trim` 去除首尾空白。
+- 密钥和 Cookie 应通过 `--stdin` 或 `--file` 输入，避免进入 shell history。
+- `get` 按键名识别并脱敏常见密钥、Token、Cookie、密码、Agent 环境变量与命令参数；插件或自定义字段可能使用无法识别的名称，输出前仍应检查。
+- 配置类型校验失败时只报告错误类别，不回显被拒绝的值，以免凭据出现在错误输出或日志中。
+- `--reveal-secrets` 输出明文，请只在受控环境使用。
+
+```bash
+# 从 stdin 设置凭据，不在 argv 中出现
+printf '%s' "$DEEPL_API_KEY" |
+  agentero settings set /translate/providerConfigs/deepl/apiKey \
+    --stdin --string --json
+```
+
+每次读取返回内容 SHA-256 `revision`。写操作可传
+`--expected-revision <REVISION>` 做乐观并发控制，文件已被其他 CLI 或桌面端修改时返回
+`settings_revision_conflict`，不会覆盖新值。
+
+CLI 和桌面 Host 都通过同一 `settings.json.lock` 获取跨进程写锁，并使用同目录原子替换。
+运行中的桌面端约每 400ms 检查文件 revision。CLI 写入成功后，Host 会重新反序列化、执行
+`AppSettings` 归一化、刷新网络代理与领域订阅，并广播 `settings:changed`，无需重启 App。
+核心不变量见 [settings.md](settings.md#cli-与运行中-host)。
+
+`settings`、`agents` 和 `doctor` 在写入前按其共享的 Rust 类型校验；Agent scope 还会拒绝
+当前桌面版本无法保留的未知非空字段。插件 scope 校验文档
+顶层版本和结构，插件启用时仍由桌面 Host 校验 manifest、权限和参数。应用运行时，Agent 与插件
+文件的变化也会触发相应的现有事件；已运行的 Agent 会话不因注册表修改而自动重启。
+插件配置改变后，前端当前会重新加载该 Vault 中的已安装插件，正在执行的插件任务可能中断。
+CLI 的 TOML 修改会重新格式化文件。`settings get` 显示反序列化默认值和磁盘字段的合并，
+最终生效值还可能经过 Host 归一化；部分设置如遥测开关需下次启动才能生效。
+
+`frontendPreferences` 供 CLI 设置过去仅在桌面 WebView 保存的持久偏好。已覆盖的键：
+
+| 键 | 内容 |
+|---|---|
+| `agentModels` / `agentReasoning` / `agentCollaboration` / `agentFavorites` | 按 Agent id 保存的模型、推理强度、协作模式和收藏 |
+| `texProjects` / `texEngines` | 按 TeX 根文件保存的构建参数、根文件选择和引擎 |
+| `writingGithub` / `writingSync` | 按 Vault、项目保存的 GitHub 地址、分支和同步方式 |
+| `zoteroImport` / `zoteroSync` | Zotero 导入和同步对话框记住的参数 |
+| `arxivCategories` | arXiv 推荐分类 |
+| `textEditorFontSize` / `pdfPaperTone` / `pdfMarkup` / `pdfCardWidths` / `texReviewWidth` | 编辑器、PDF 与写作界面记住的显示偏好 |
+
+第一次启动新版桌面端时，旧 WebView 的这些偏好只填充共享设置中缺失的键，保留已由
+CLI 写入的值；原 WebView 存储保留为本地镜像。正在运行时，TeX 配置、文字编辑器字号和
+PDF 纸张色调会刷新；其他记忆参数在对应界面下次读取时生效。Agent 偏好用于后续会话或
+模型选择，不会强制更改正在运行的 Agent 会话。修改 TeX 项目前，先用 `get` 查看项目根
+路径和现有配置；路径区分规则与桌面端一致。
+
+**覆盖范围**：当前命令覆盖上述持久配置，以及 `sync configure` 等已有领域命令；临时表单
+输入、工作区布局与各窗口的即时状态尚未全部迁移，因此不能声称 CLI 已覆盖应用中每个输入。
+它不读取 ChatGPT 的登录数据或网页会话。
 
 ### Agent 自省（`describe`）
 

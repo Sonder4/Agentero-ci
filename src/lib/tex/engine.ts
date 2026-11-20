@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * Which engine latexmk should call.
  *
@@ -10,7 +11,7 @@
 import { normalizePath } from "@/lib/core/path";
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 
-const ENGINE_STORAGE_KEY = "agentero.texEngineByRoot";
+const ENGINE_STORAGE_KEY = PREFERENCE_STORAGE_KEYS.texEngines;
 const KNOWN_ENGINES = new Set(["pdflatex", "xelatex", "lualatex"]);
 
 /** First `% !TEX program = …` / `% !TEX TS-program = …` that names an engine. */

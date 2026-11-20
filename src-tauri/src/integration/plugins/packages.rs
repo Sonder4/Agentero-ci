@@ -3,7 +3,7 @@ use super::*;
 use crate::core::json::JsonValue;
 use agentero_core::plugins::{load_plugins, store_plugins, PluginsDocument};
 use serde_json::{json, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
 use tauri::Emitter;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -57,16 +57,77 @@ fn key(vault: &str) -> Result<String, String> {
 }
 fn changed(app: &tauri::AppHandle, id: &str) {
     let manager = app.state::<PluginManager>();
+    *manager.3.lock().unwrap_or_else(|e| e.into_inner()) = read().ok();
+    revoke(manager.inner(), &HashSet::from([id.to_string()]));
+    let _ = app.emit("plugins:changed", ());
+}
+
+fn revoke(manager: &PluginManager, ids: &HashSet<String>) {
     let mut loaded = manager.0.lock().unwrap_or_else(|e| e.into_inner());
     loaded.retain(|_, entry| {
-        if entry.plugin.manifest.id != id {
+        if !ids.contains(&entry.plugin.manifest.id) {
             return true;
         }
         entry.cancel.cancel();
         false
     });
-    drop(loaded);
-    let _ = app.emit("plugins:changed", ());
+}
+
+/// Detect changes made by the CLI and revoke affected running instances before
+/// asking the renderer to reactivate their updated configuration.
+pub fn spawn_watcher(app: tauri::AppHandle) {
+    let manager = app.state::<PluginManager>();
+    *manager.3.lock().unwrap_or_else(|e| e.into_inner()) = read().ok();
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+            let manager = app.state::<PluginManager>();
+            let changed = {
+                let _guard = manager.1.lock().unwrap_or_else(|e| e.into_inner());
+                let _file_lock = match agentero_core::fs::SidecarLock::acquire(
+                    &agentero_core::paths::plugins_path(),
+                ) {
+                    Ok(lock) => lock,
+                    Err(_) => continue,
+                };
+                let next = match read() {
+                    Ok(value) => value,
+                    Err(_) => continue,
+                };
+                let mut previous = manager.3.lock().unwrap_or_else(|e| e.into_inner());
+                if previous.as_ref() == Some(&next) {
+                    false
+                } else {
+                    let entries = |doc: &Value| {
+                        doc["plugins"]
+                            .as_array()
+                            .into_iter()
+                            .flatten()
+                            .filter_map(|entry| {
+                                entry["id"]
+                                    .as_str()
+                                    .map(|id| (id.to_string(), entry.clone()))
+                            })
+                            .collect::<BTreeMap<_, _>>()
+                    };
+                    let old = previous.as_ref().map(entries).unwrap_or_default();
+                    let new = entries(&next);
+                    let ids = old
+                        .keys()
+                        .chain(new.keys())
+                        .filter(|id| old.get(*id) != new.get(*id))
+                        .cloned()
+                        .collect();
+                    revoke(manager.inner(), &ids);
+                    *previous = Some(next);
+                    true
+                }
+            };
+            if changed {
+                let _ = app.emit("plugins:changed", ());
+            }
+        }
+    });
 }
 
 #[tauri::command]
@@ -98,6 +159,8 @@ pub fn plugin_install(app: tauri::AppHandle, directory: String) -> Result<(), St
     let plugin = manifest::load(std::path::Path::new(&directory))?;
     let manager = app.state::<PluginManager>();
     let _lock = manager.1.lock().unwrap_or_else(|e| e.into_inner());
+    let _file_lock = agentero_core::fs::SidecarLock::acquire(&agentero_core::paths::plugins_path())
+        .map_err(|e| e.to_string())?;
     let mut document = read()?;
     let id = install_snapshot(&mut document, plugin)?;
     write(document)?;
@@ -148,6 +211,8 @@ pub fn plugin_configure(
     let vault = key(&vault_path)?;
     let manager = app.state::<PluginManager>();
     let _lock = manager.1.lock().unwrap_or_else(|e| e.into_inner());
+    let _file_lock = agentero_core::fs::SidecarLock::acquire(&agentero_core::paths::plugins_path())
+        .map_err(|e| e.to_string())?;
     let mut document = read()?;
     let entry = document["plugins"]
         .as_array_mut()
@@ -203,6 +268,8 @@ fn resolve_scope(
 pub fn plugin_remove(app: tauri::AppHandle, id: String) -> Result<(), String> {
     let manager = app.state::<PluginManager>();
     let _lock = manager.1.lock().unwrap_or_else(|e| e.into_inner());
+    let _file_lock = agentero_core::fs::SidecarLock::acquire(&agentero_core::paths::plugins_path())
+        .map_err(|e| e.to_string())?;
     let mut document = read()?;
     document["plugins"]
         .as_array_mut()

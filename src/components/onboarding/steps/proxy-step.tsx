@@ -61,7 +61,7 @@ export function ProxyStep({
 			};
 			setSaving(true);
 			try {
-				const saved = await saveSettingsAsync(next);
+				const saved = await saveSettingsAsync(next, settings);
 				patch({
 					networkProxyEnabled: saved.networkProxyEnabled,
 					networkProxyUrl: saved.networkProxyUrl,

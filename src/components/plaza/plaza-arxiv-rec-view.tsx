@@ -1,4 +1,5 @@
 import { SelectionSurface } from "@/components/selection/selection-surface";
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * Native 广场 panel: today's arXiv papers ranked against the Vault library.
  *
@@ -69,7 +70,7 @@ import { runTranslate } from "@/lib/translate";
 import { getVaultPath } from "@/lib/vault/store";
 import { openRemoteArxivPaper } from "@/lib/workspace/actions";
 
-const CATEGORIES_STORAGE_KEY = "plaza:arxiv-rec:categories";
+const CATEGORIES_STORAGE_KEY = PREFERENCE_STORAGE_KEYS.arxivCategories;
 
 function loadCategories(): string[] {
 	const parsed = readJsonStorage<unknown>(CATEGORIES_STORAGE_KEY, null);

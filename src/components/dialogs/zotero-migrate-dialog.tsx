@@ -39,6 +39,7 @@ import {
 import { useOverlayRegistration } from "@/hooks/use-overlay-registration";
 import i18n from "@/i18n";
 import { errorText } from "@/lib/core/error";
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 import { writeJsonStorage } from "@/lib/core/storage";
 import { runLocalActivity } from "@/lib/core/tasks";
 import {
@@ -53,7 +54,7 @@ import {
 import { ensureVault } from "@/lib/vault";
 
 /** Remembered import options (localStorage). */
-const OPTS_KEY = "motif.zotero.opts";
+const OPTS_KEY = PREFERENCE_STORAGE_KEYS.zoteroImport;
 type SavedOpts = {
 	copyPdfs: boolean;
 	preserveCollections: boolean;

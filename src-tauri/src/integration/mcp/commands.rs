@@ -9,6 +9,29 @@ use serde::Deserialize;
 use std::sync::Arc;
 use tauri::State;
 
+static MCP_LIFECYCLE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+pub(crate) async fn apply_enabled(
+    ctrl: &Arc<McpController>,
+    tunnel: &McpTunnelController,
+    enabled: bool,
+) -> McpStatus {
+    let _guard = MCP_LIFECYCLE.lock().await;
+    let status = ctrl.set_enabled(enabled).await;
+    if !enabled {
+        tunnel.stop();
+    }
+    status
+}
+
+pub(crate) async fn apply_port(ctrl: &Arc<McpController>, port: u16) -> McpStatus {
+    let _guard = MCP_LIFECYCLE.lock().await;
+    if ctrl.port() == port {
+        return ctrl.status();
+    }
+    ctrl.set_port(port).await
+}
+
 #[tauri::command]
 #[specta::specta]
 pub fn mcp_get_status(ctrl: State<'_, Arc<McpController>>) -> ApiResult<McpStatus> {
@@ -31,11 +54,8 @@ pub async fn mcp_set_enabled(
     use crate::core::log_util::OpTimer;
     let op = OpTimer::start_with("mcp_set_enabled", format!("enabled={}", args.enabled));
     let ctrl = Arc::clone(&ctrl);
-    let status = ctrl.set_enabled(args.enabled).await;
-    if !args.enabled {
-        // MCP off ⇒ tunnel has nothing to serve and must not keep running.
-        tunnel.stop();
-    }
+    let status = apply_enabled(&ctrl, &tunnel, args.enabled).await;
+    crate::app::reconcile_service_settings();
     if let Some(err) = status.last_error.as_deref() {
         if !err.is_empty() && args.enabled {
             op.finish_err_msg("mcp", err);
@@ -67,7 +87,9 @@ pub async fn mcp_set_port(
     args: McpSetPortArgs,
 ) -> Result<ApiResult<McpStatus>, String> {
     let ctrl = Arc::clone(&ctrl);
-    Ok(ApiResult::ok(ctrl.set_port(args.port).await))
+    let status = apply_port(&ctrl, args.port).await;
+    crate::app::reconcile_service_settings();
+    Ok(ApiResult::ok(status))
 }
 
 #[derive(Debug, Deserialize, specta::Type)]
@@ -154,6 +176,9 @@ pub async fn mcp_tunnel_start(
         return Ok(ApiResult::err(err));
     };
 
+    // Serialize startup with disabling the listener so a late tunnel spawn
+    // cannot survive a concurrent MCP shutdown.
+    let _guard = MCP_LIFECYCLE.lock().await;
     let mcp_status = mcp.status();
     if !mcp_status.listening {
         let err = AppError::message("MCP server is not listening.");

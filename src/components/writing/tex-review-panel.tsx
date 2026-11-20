@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * Review column for one TeX buffer. Threads stay out of the source file.
  */
@@ -16,7 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 import type { TexComment } from "@/lib/tex/comments";
 
-const REVIEW_WIDTH_KEY = "agentero-tex-review-width";
+const REVIEW_WIDTH_KEY = PREFERENCE_STORAGE_KEYS.texReviewWidth;
 const REVIEW_DEFAULT_PX = 384;
 export const TEX_REVIEW_MIN_PX = 176;
 export const TEX_REVIEW_MAX_PX = 560;

@@ -22,12 +22,50 @@ pub enum VaultCmd {
     },
     /// List known vaults recorded by `vault create`.
     List,
+    /// Set the default Vault for subsequent CLI commands.
+    Use {
+        #[arg(value_hint = ValueHint::DirPath)]
+        path: PathBuf,
+    },
+    /// Forget a Vault in the CLI list without deleting its files.
+    Forget {
+        #[arg(value_hint = ValueHint::DirPath)]
+        path: PathBuf,
+    },
 }
 
 pub async fn run(cmd: VaultCmd, globals: &GlobalOpts) -> Result<Value, CliError> {
     match cmd {
         VaultCmd::Create { path, open } => create(&path, open, globals),
         VaultCmd::List => list(globals),
+        VaultCmd::Use { path } => {
+            let canonical = super::open::resolve_open_dir(&path)?;
+            let name = canonical.to_string_lossy().into_owned();
+            config::update(|cfg| {
+                cfg.default_vault = Some(name.clone());
+                if !cfg.known_vaults.contains(&name) {
+                    cfg.known_vaults.push(name.clone());
+                }
+                Ok(())
+            })?;
+            Ok(
+                json!({ "defaultVault": name, "lines": [format!("default vault: {}", canonical.display())] }),
+            )
+        }
+        VaultCmd::Forget { path } => {
+            let canonical = path.canonicalize().unwrap_or(path);
+            let name = canonical.to_string_lossy().into_owned();
+            config::update(|cfg| {
+                cfg.known_vaults.retain(|item| item != &name);
+                if cfg.default_vault.as_deref() == Some(&name) {
+                    cfg.default_vault = None;
+                }
+                Ok(())
+            })?;
+            Ok(
+                json!({ "forgotten": name, "lines": [format!("forgot vault: {}", canonical.display())] }),
+            )
+        }
     }
 }
 

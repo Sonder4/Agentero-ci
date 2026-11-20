@@ -4,6 +4,7 @@
 |---|---|
 | `settings_get` | 读全部设置 |
 | `settings_set` | 合并写入并广播 `settings:changed` |
+| `agentero settings …` | 无 GUI 读取、单字段写入、批量合并、替换、重置和键路径发现 |
 
 - 路径：`$XDG_CONFIG_HOME/agentero/settings.json`（macOS 通常 `~/.config/agentero/`）。同目录的 `plugins.json` 不是 `AppSettings` 的字段：`schemaVersion` 1，保存已安装插件的 manifest、源码快照和按 Vault 路径分键的 scopes，未知键保留。设置页插件入口当前隐藏。见 [plugins.md](plugins.md)。
 - `telemetryEnabled`：是否把行为事件脱敏投影到 PostHog（见 [telemetry.md](telemetry.md)）。本地 `usage.sqlite` 记录始终开启、无开关。
@@ -18,6 +19,32 @@
 - `shortcutOverrides`：按命令 id 保存自定义组合（`key` + 可选 `meta` / `ctrl` / `alt` / `shift`），`null` 禁用，缺省使用默认。旧文件默认空映射；保存、重启与 `settings:changed` 保留配置。macOS 菜单订阅设置，重建加速键；录制期间 `set_menu_shortcut_recording` 暂停菜单，结束录制或窗口销毁后恢复。
 - 旧 localStorage 键一次性迁移。
 - Agent 注册表等同目录管理。
+
+## CLI 与运行中 Host
+
+`agentero settings` 是本文件的机器写入口。它通过 JSON Pointer 操作完整
+`AppSettings`，不维护第二份字段表。CLI 与 Host 的共同写入规则：
+
+1. 写操作先获取 `settings.json.lock` 的跨进程排他锁。
+2. 读取并修改同一份 JSON 后，通过同目录临时文件原子替换 `settings.json`。
+3. CLI 成功写入时输出内容 SHA-256 revision。脚本可把前一读的 revision 传给
+   `--expected-revision`，避免覆盖并发修改。
+4. 运行中的桌面 Host 每约 400ms 比较文件 revision。发现外部写入后，它解析为
+   `AppSettings`、执行与 UI 保存相同的 normalize，刷新网络代理，触发现有
+   settings listeners，并广播 `settings:changed`。
+5. UI 保存时携带编辑前快照；Host 在锁内对比并合并发生变化的顶层字段。其他字段的并发
+   修改会保留，同一字段的冲突会被拒绝并重新读取。前端偏好通过独立的单键比较更新；
+   多个本窗口设置写入按顺序发送。密钥在 UI 快照中以星号掩码，相同长度的两次不同密钥
+   修改无法仅凭掩码识别，自动化脚本需要使用 `--expected-revision`。
+
+CLI 基于键名掩码常见凭据和 Cookie；自定义字段的名称可能无法识别。`--reveal-secrets` 只用于受控脚本。
+密钥输入推荐使用 stdin/file，避免 argv 与 shell history。对于当前版本不能保留的非空未知字段，
+CLI 和 Host 会拒绝保存，避免静默删除；已知旧版字段继续迁移。命令、值语法与并发冲突细节见
+[cli.md](cli.md#应用设置settings)。
+
+`frontendPreferences` 是同一 `settings.json` 中的功能偏好映射。桌面端首次从旧 WebView 存储
+迁移时只插入缺失键；读写和外部变更继续复用现有设置锁、持久化和 `settings:changed` 事件。
+普通设置表单不会整体覆盖这一映射。键列表和生效时机见 [cli.md](cli.md#应用设置settings)。
 
 ## 内置 provider 凭证解析
 
@@ -36,12 +63,12 @@ settings 不存内置 provider 的任何凭证；它只在**读取时**把 id `a
 
 settings 只提供读/写/持久化/广播能力，**不 import 任何域 feature**（出边仅 `core/*`）：
 
-- `settings_set` 只做：proxy 校验 → `store.set`（merge 密钥/normalize/原子落盘）→ 广播 `settings:changed`。
+- `settings_set` 只做：按编辑前快照合并 → proxy 校验 → merge 密钥、normalize、原子落盘 → 广播 `settings:changed`。
 - 域侧反应通过 `AppSettingsStore::subscribe` 在 app 装配（`app/mod.rs` setup）注册，`set` 成功后以 redacted 快照触发（模式同 P2-12 JobCenter runner 注册制）：
   - agent：`set_proxy`（网络代理同步）
   - import：`refresh_parser_config`（正文解析引擎凭据快照，桌面端）
-  - connector：`set_port`（端口变更重绑监听）
-  - mcp：`set_port` + translator / note-mode 快照（端口变更重绑监听；端口变化时自动停掉内置 ChatGPT tunnel，用户需再点 Start）
+  - connector：按最新配置串行对齐启停与端口
+  - mcp：按最新配置串行对齐启停、端口及 translator / note-mode；关闭 MCP 或改变端口会停掉内置 ChatGPT tunnel，用户需再点 Start
   - tunnel：与 MCP 同域，但凭据从 settings store 原值读取（不通过 redacted 快照传递），启动/停止由 `mcp_tunnel_start` / `mcp_tunnel_stop` 命令驱动
   - jobs：`apply_layout_backend` + `apply_import_concurrency` + `drain_and_spawn`（layout / 导入并发上限）
 - 反序列化期需要的域默认值（如 `DEFAULT_CONNECTOR_PORT`）定义在 settings，由属主域 re-export（方向 `connector → settings`，不成环）。

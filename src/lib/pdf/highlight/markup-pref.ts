@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * Remembered text-markup shape for new PDF selections.
  *
@@ -12,7 +13,7 @@ import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 import { HIGHLIGHT_COLORS, type HighlightColor } from "./palette";
 import type { PdfTextMarkupKind } from "./types";
 
-const KEY = "agentero-pdf-markup-shapes";
+const KEY = PREFERENCE_STORAGE_KEYS.pdfMarkup;
 
 export type MarkupShapes = Record<HighlightColor, PdfTextMarkupKind>;
 

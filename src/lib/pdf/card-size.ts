@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * Remembered width for the PDF floating cards (translation today).
  *
@@ -13,7 +14,7 @@
 
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 
-const KEY = "agentero-pdf-card-widths";
+const KEY = PREFERENCE_STORAGE_KEYS.pdfCardWidths;
 
 /** Anything smaller/larger is a layout accident, not a width the user picked. */
 const MIN_WIDTH = 120;

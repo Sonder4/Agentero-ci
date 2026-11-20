@@ -224,6 +224,14 @@ enum Commands {
         #[command(subcommand)]
         cmd: Option<commands::doctor::DoctorCmd>,
     },
+    /// Read and update every shared Agentero settings field.
+    Settings {
+        /// Configuration document to operate on.
+        #[arg(long, value_enum, default_value = "settings")]
+        scope: commands::settings::ConfigScope,
+        #[command(subcommand)]
+        cmd: commands::settings::SettingsCmd,
+    },
     /// Sidebar layout index (figures / tables / algorithms / formulas):
     /// list / get cached regions, analyze to generate them headlessly.
     Layout {
@@ -402,6 +410,8 @@ fn command_label(cmd: &Commands) -> &'static str {
         Commands::Vault { cmd } => match cmd {
             commands::vault::VaultCmd::Create { .. } => "cli.vault.create",
             commands::vault::VaultCmd::List => "cli.vault.list",
+            commands::vault::VaultCmd::Use { .. } => "cli.vault.use",
+            commands::vault::VaultCmd::Forget { .. } => "cli.vault.forget",
         },
         Commands::Sync { .. } => "cli.sync",
         Commands::Describe { .. } => "cli.describe",
@@ -411,6 +421,7 @@ fn command_label(cmd: &Commands) -> &'static str {
         Commands::Feed { .. } => "cli.feed",
         Commands::Export { .. } => "cli.export",
         Commands::Doctor { .. } => "cli.doctor",
+        Commands::Settings { .. } => "cli.settings",
         Commands::Layout { .. } => "cli.layout",
         Commands::Mark { .. } => "cli.mark",
         Commands::Mcp { .. } => "cli.mcp",
@@ -449,6 +460,7 @@ async fn run(command: Commands, globals: &GlobalOpts) -> Result<serde_json::Valu
         Commands::Feed { cmd } => commands::feed::run(cmd, globals).await,
         Commands::Export { cmd } => commands::export::run(cmd, globals).await,
         Commands::Doctor { cmd } => commands::doctor::run(cmd, globals),
+        Commands::Settings { scope, cmd } => commands::settings::run(scope, cmd, globals),
         Commands::Layout { cmd } => commands::layout::run(cmd, globals).await,
         Commands::Mark { cmd } => commands::mark::run(cmd, globals).await,
         Commands::Mcp { cmd } => match cmd {

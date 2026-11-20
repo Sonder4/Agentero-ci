@@ -145,6 +145,7 @@ export function clampEditorLineHeight(value: number): number {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+	frontendPreferences: {},
 	shortcutOverrides: {},
 	easyScholarKey: "",
 	zhihuAccessSecret: "",

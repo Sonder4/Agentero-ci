@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * The GitHub repository bound to one writing project.
  * Every project under `thesis/` keeps its own repository. The address stays on
@@ -10,7 +11,7 @@ import {
 	writeJsonStorage,
 } from "@/lib/core/storage";
 
-export const WRITING_GITHUB_KEY = "agentero.writing.github.v1";
+export const WRITING_GITHUB_KEY = PREFERENCE_STORAGE_KEYS.writingGithub;
 
 export type WritingGitHubLink = {
 	remote: string;

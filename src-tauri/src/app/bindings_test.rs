@@ -25,6 +25,7 @@ pub(crate) fn export_typescript_bindings() {
         .commands(tauri_specta::collect_commands![
             crate::features::system::settings::commands::settings_get,
             crate::features::system::settings::commands::settings_set,
+            crate::features::system::settings::commands::settings_update_frontend_preferences,
             crate::features::system::settings::commands::network_system_proxy,
             crate::features::system::settings::commands::list_system_fonts,
             crate::features::system::settings::commands::easy_scholar_probe,

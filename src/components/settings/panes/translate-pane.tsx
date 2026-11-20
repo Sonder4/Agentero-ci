@@ -369,10 +369,13 @@ export function TranslatePane({
 
 			try {
 				// Write real key (or mask-merge) to Host before probe.
-				await saveSettingsAsync({
-					...settings,
-					translate: nextTranslate,
-				});
+				await saveSettingsAsync(
+					{
+						...settings,
+						translate: nextTranslate,
+					},
+					settings,
+				);
 			} catch {
 				// Still try probe / mask UI below.
 			}

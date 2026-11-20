@@ -1,5 +1,6 @@
 import { createStore } from "zustand/vanilla";
 import { createPathRemapper, dirnameOf, normalizePath } from "@/lib/core/path";
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 import type { LatexBuildOptions, LatexRecipe } from "@/lib/tex/host";
 
@@ -26,7 +27,7 @@ export const DEFAULT_TEX_SETTINGS: TexProjectSettings = {
 	jobname: "",
 };
 
-const STORAGE_KEY = "agentero.texProjects.v1";
+const STORAGE_KEY = PREFERENCE_STORAGE_KEYS.texProjects;
 type TexSettingsState = {
 	projects: Record<string, TexProjectSettings>;
 	/** Directory -> explicitly chosen root, including a subfiles document. */
@@ -105,7 +106,7 @@ function loadSettings(): TexSettingsState {
 	const projects: TexSettingsState["projects"] = {};
 	for (const [path, value] of Object.entries(saved?.projects ?? {})) {
 		try {
-			projects[path] = { ...validateTexSettings(value), autoBuild: "onSave" };
+			projects[path] = validateTexSettings(value);
 		} catch {
 			/* Ignore invalid persisted entries. */
 		}
@@ -119,6 +120,14 @@ function loadSettings(): TexSettingsState {
 }
 
 export const texSettingsStore = createStore<TexSettingsState>(loadSettings);
+
+if (typeof window !== "undefined") {
+	window.addEventListener("agentero:frontend-preference-changed", (event) => {
+		if ((event as CustomEvent<{ key: string }>).detail?.key === STORAGE_KEY) {
+			texSettingsStore.setState(loadSettings(), true);
+		}
+	});
+}
 
 export function getTexProjectSettings(rootPath: string): TexProjectSettings {
 	return (

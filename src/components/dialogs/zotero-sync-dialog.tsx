@@ -20,6 +20,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSettings } from "@/hooks/use-app-stores";
 import { useOverlayRegistration } from "@/hooks/use-overlay-registration";
 import { errorText } from "@/lib/core/error";
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 import { writeJsonStorage } from "@/lib/core/storage";
 import { discoverZoteroDirs } from "@/lib/paper/import/zotero-migrate";
 import {
@@ -27,7 +28,7 @@ import {
 	type ZoteroSyncResult,
 } from "@/lib/paper/import/zotero-sync";
 
-const OPTS_KEY = "motif.zotero.sync.opts";
+const OPTS_KEY = PREFERENCE_STORAGE_KEYS.zoteroSync;
 type SavedOpts = {
 	pullMetadata: boolean;
 	pullNotes: boolean;

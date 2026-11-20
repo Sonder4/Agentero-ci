@@ -13,6 +13,7 @@ use crate::features::agent::registry::lifecycle;
 use crate::features::agent::registry::templates::{
     catalog_templates, interactive_cli, template_from_id, template_info, zcode_host_path,
 };
+use sha2::{Digest, Sha256};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -22,27 +23,39 @@ use uuid::Uuid;
 pub struct AgentRegistry {
     inner: Mutex<AgentRegistryState>,
     path: PathBuf,
+    last_disk_revision: Mutex<Option<String>>,
 }
 
 impl AgentRegistry {
     pub fn load() -> Self {
         let path = config_path();
+        let file_lock = crate::core::fs::SidecarLock::acquire(&path);
+        if file_lock.is_ok() {
+            crate::core::paths::migrate_legacy_file("agents.json", &path);
+        }
+        let loaded = read_state(&path);
+        let valid = loaded.is_ok();
         let (mut state, removed_templates) =
-            read_state(&path).unwrap_or_else(|_| (AgentRegistryState::default(), false));
+            loaded.unwrap_or_else(|_| (AgentRegistryState::default(), false));
         let migrated_codex = migrate_legacy_codex_agents(&mut state);
         let migrated_grok = migrate_legacy_grok_agents(&mut state);
         let migrated_zcode = migrate_legacy_zcode_agents(&mut state);
         let migrated_env = migrate_catalog_env_defaults(&mut state);
         let added_builtin = ensure_builtin_agents(&mut state);
         state.enabled = true;
-        if migrated_codex
-            || migrated_grok
-            || migrated_zcode
-            || removed_templates
-            || migrated_env
-            || added_builtin
+        if valid
+            && (migrated_codex
+                || migrated_grok
+                || migrated_zcode
+                || removed_templates
+                || migrated_env
+                || added_builtin)
         {
-            if let Err(error) = persist(&path, &state) {
+            if let Err(error) = file_lock
+                .as_ref()
+                .map_err(|e| e.to_string())
+                .and_then(|_| persist_unlocked(&path, &state).map_err(|e| e.to_string()))
+            {
                 log::error!(
                     target: "agentero::agent",
                     "failed to persist agent registration migration: {error}"
@@ -51,8 +64,77 @@ impl AgentRegistry {
         }
         Self {
             inner: Mutex::new(state),
+            last_disk_revision: Mutex::new(if valid {
+                disk_revision(&path).ok().flatten()
+            } else {
+                None
+            }),
             path,
         }
+    }
+
+    fn persist_state(&self, state: &mut AgentRegistryState) -> Result<(), AppError> {
+        // Callers hold `inner`: always acquire locks in inner -> file -> revision
+        // order, matching `reload_if_changed`.
+        let _lock = crate::core::fs::SidecarLock::acquire(&self.path)?;
+        let current = disk_revision(&self.path)?;
+        let observed = self
+            .last_disk_revision
+            .lock()
+            .map_err(|_| AppError::message("agent registry revision lock poisoned"))?
+            .clone();
+        if current != observed {
+            // Never replace a newer CLI edit with the Host's stale snapshot.
+            // Leave the revision unchanged so the watcher broadcasts the reload.
+            if let Ok((mut latest, _)) = read_state(&self.path) {
+                normalize_loaded_state(&mut latest);
+                *state = latest;
+            }
+            return Err(AppError::message(
+                "agent configuration changed externally; retry after it reloads",
+            ));
+        }
+        persist_unlocked(&self.path, state)?;
+        if let Ok(mut revision) = self.last_disk_revision.lock() {
+            *revision = disk_revision(&self.path).ok().flatten();
+        }
+        Ok(())
+    }
+
+    /// Reload `agents.json` after a CLI or external editor atomically replaces it.
+    pub fn reload_if_changed(&self) -> Result<bool, AppError> {
+        let current = disk_revision(&self.path)?;
+        let observed = self
+            .last_disk_revision
+            .lock()
+            .map_err(|_| AppError::message("agent registry revision lock poisoned"))?
+            .clone();
+        if current == observed {
+            return Ok(false);
+        }
+
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| AppError::message("agent registry lock poisoned"))?;
+        let _lock = crate::core::fs::SidecarLock::acquire(&self.path)?;
+        let current = disk_revision(&self.path)?;
+        let mut observed = self
+            .last_disk_revision
+            .lock()
+            .map_err(|_| AppError::message("agent registry revision lock poisoned"))?;
+        if *observed == current {
+            return Ok(false);
+        }
+
+        let (mut state, _removed_templates) = match current {
+            Some(_) => read_state(&self.path)?,
+            None => (AgentRegistryState::default(), false),
+        };
+        normalize_loaded_state(&mut state);
+        *guard = state;
+        *observed = current;
+        Ok(true)
     }
 
     pub fn snapshot(&self) -> Result<AgentRegistryState, AppError> {
@@ -90,7 +172,7 @@ impl AgentRegistry {
                 }
             }
         }
-        persist(&self.path, &guard)?;
+        self.persist_state(&mut guard)?;
         Ok(guard.clone())
     }
 
@@ -119,7 +201,7 @@ impl AgentRegistry {
             .filter(|s| !s.is_empty())
             .collect::<Vec<_>>()
             .join(",");
-        persist(&self.path, &guard)?;
+        self.persist_state(&mut guard)?;
         Ok(guard.clone())
     }
 
@@ -137,7 +219,7 @@ impl AgentRegistry {
             }
         }
         guard.default_id = id;
-        persist(&self.path, &guard)?;
+        self.persist_state(&mut guard)?;
         Ok(guard.clone())
     }
 
@@ -207,7 +289,7 @@ impl AgentRegistry {
             guard.enabled = true;
         }
 
-        persist(&self.path, &guard)?;
+        self.persist_state(&mut guard)?;
         Ok(descriptor)
     }
 
@@ -291,7 +373,7 @@ impl AgentRegistry {
         if guard.default_id.as_deref() == Some(id) {
             guard.default_id = guard.agents.first().map(|a| a.id.clone());
         }
-        persist(&self.path, &guard)?;
+        self.persist_state(&mut guard)?;
         Ok(())
     }
 
@@ -321,7 +403,7 @@ impl AgentRegistry {
         {
             guard.default_id = guard.agents.first().map(|a| a.id.clone());
         }
-        persist(&self.path, &guard)?;
+        self.persist_state(&mut guard)?;
         Ok(true)
     }
 
@@ -353,7 +435,7 @@ impl AgentRegistry {
             agent.available = true;
             agent.last_error = None;
         }
-        persist(&self.path, &guard)?;
+        self.persist_state(&mut guard)?;
         Ok(())
     }
 
@@ -797,7 +879,6 @@ pub(crate) fn chrono_like_now() -> String {
 
 fn config_path() -> PathBuf {
     let path = crate::core::paths::agents_path();
-    crate::core::paths::migrate_legacy_file("agents.json", &path);
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
@@ -816,13 +897,30 @@ fn read_state(path: &PathBuf) -> Result<(AgentRegistryState, bool), AppError> {
     Ok((serde_json::from_value(value)?, removed))
 }
 
-fn persist(path: &Path, state: &AgentRegistryState) -> Result<(), AppError> {
+fn persist_unlocked(path: &Path, state: &AgentRegistryState) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent)?;
     }
     // Atomic temp+rename: a crash mid-write must never truncate agents.json —
     // `load()` falls back to an empty registry on any parse failure.
     crate::core::fs::json_store(path, state)
+}
+
+fn normalize_loaded_state(state: &mut AgentRegistryState) {
+    let _ = migrate_legacy_codex_agents(state);
+    let _ = migrate_legacy_grok_agents(state);
+    let _ = migrate_legacy_zcode_agents(state);
+    let _ = migrate_catalog_env_defaults(state);
+    let _ = ensure_builtin_agents(state);
+    state.enabled = true;
+}
+
+fn disk_revision(path: &Path) -> Result<Option<String>, AppError> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(Some(hex::encode(Sha256::digest(bytes)))),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(error) => Err(error.into()),
+    }
 }
 
 fn normalize_proxy_url(proxy_url: &str) -> String {
@@ -1489,6 +1587,7 @@ mod tests {
                 ..AgentRegistryState::default()
             }),
             path: PathBuf::new(),
+            last_disk_revision: Mutex::new(None),
         };
 
         let summary = registry.telemetry_summary();

@@ -5,6 +5,14 @@
 
 export type StorageLike = Pick<Storage, "getItem" | "setItem" | "removeItem">;
 
+type JsonWriteObserver = (key: string, before: unknown, after: unknown) => void;
+let jsonWriteObserver: JsonWriteObserver | undefined;
+
+/** Observe writes to the actual WebView storage, not injected test storage. */
+export function observeJsonStorageWrites(observer: JsonWriteObserver): void {
+	jsonWriteObserver = observer;
+}
+
 function defaultStorage(): StorageLike | null {
 	try {
 		if (typeof localStorage === "undefined") return null;
@@ -38,7 +46,20 @@ export function writeJsonStorage(
 ): boolean {
 	if (!storage) return false;
 	try {
+		let before: unknown = null;
+		const isWebStorage = storage === defaultStorage();
+		if (isWebStorage && jsonWriteObserver) {
+			const previous = storage.getItem(key);
+			if (previous !== null) {
+				try {
+					before = JSON.parse(previous);
+				} catch {
+					// Invalid legacy data is treated as missing.
+				}
+			}
+		}
 		storage.setItem(key, JSON.stringify(value));
+		if (isWebStorage) jsonWriteObserver?.(key, before, value);
 		return true;
 	} catch {
 		return false;

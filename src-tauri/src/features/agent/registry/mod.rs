@@ -7,6 +7,8 @@ pub mod remote;
 pub mod store;
 pub mod templates;
 pub mod version_check;
+#[cfg(feature = "desktop")]
+pub mod watcher;
 
 pub use discovery::{path_entries, probe_command, resolve_command};
 pub use lifecycle::{

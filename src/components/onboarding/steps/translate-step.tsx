@@ -173,7 +173,10 @@ export function TranslateStep({
 		};
 		setDraft({ apiKey: masked });
 		try {
-			await saveSettingsAsync({ ...settings, translate: nextTranslate });
+			await saveSettingsAsync(
+				{ ...settings, translate: nextTranslate },
+				settings,
+			);
 		} catch {
 			// Still mask the UI below.
 		}

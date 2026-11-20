@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * PDF page paper tone (white / sepia / green / dark, independent of app theme).
  * Persisted per install and broadcast so every open viewer follows the switch.
@@ -10,7 +11,7 @@
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 import { isPdfPaperTone, type PdfPaperTone } from "@/lib/pdf/page-theme";
 
-const PDF_COLOR_SCHEME_STORAGE_KEY = "agentero-pdf-color-scheme";
+const PDF_COLOR_SCHEME_STORAGE_KEY = PREFERENCE_STORAGE_KEYS.pdfPaperTone;
 export const PDF_PAPER_TONE_EVENT = "agentero:pdf-color-scheme";
 
 /** Stored preference, falling back to white paper on first use. */
@@ -31,4 +32,17 @@ export function writePdfPaperTone(next: PdfPaperTone): void {
 			new CustomEvent<PdfPaperTone>(PDF_PAPER_TONE_EVENT, { detail: next }),
 		);
 	}
+}
+
+if (typeof window !== "undefined") {
+	window.addEventListener("agentero:frontend-preference-changed", (event) => {
+		if (
+			(event as CustomEvent<{ key: string }>).detail?.key ===
+			PDF_COLOR_SCHEME_STORAGE_KEY
+		) {
+			window.dispatchEvent(
+				new CustomEvent(PDF_PAPER_TONE_EVENT, { detail: readPdfPaperTone() }),
+			);
+		}
+	});
 }

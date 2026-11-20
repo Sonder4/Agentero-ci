@@ -20,6 +20,7 @@ import {
 	loadSettings,
 	subscribeSettings,
 } from "@/lib/settings";
+import { initFrontendPreferences } from "@/lib/settings/frontend-preferences";
 import { initSettingsStore } from "@/lib/settings/react-store";
 import { applyNativeWindowTheme } from "@/lib/shell/native-window-theme";
 import { initShellLayoutFromPrefs } from "@/lib/shell/ui-store";
@@ -72,6 +73,7 @@ async function boot() {
 
 	// Host XDG settings.json (migrates legacy localStorage once).
 	await ensureSettingsLoaded();
+	await initFrontendPreferences((error) => notifyError(errorText(error)));
 	// Every window must hydrate the React mirror before it can patch settings.
 	initSettingsStore();
 	bootStage("settings");

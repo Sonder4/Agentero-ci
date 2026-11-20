@@ -122,6 +122,11 @@ pub fn load_doctor_state(vault: &Path) -> DoctorVaultState {
 /// Persist vault-local Doctor state (creates `.agentero/` if needed).
 pub fn save_doctor_state(vault: &Path, state: &DoctorVaultState) -> Result<(), AppError> {
     let path = doctor_state_path(vault);
+    let _lock = crate::fs::SidecarLock::acquire(&path)?;
+    save_doctor_state_unlocked(&path, state)
+}
+
+fn save_doctor_state_unlocked(path: &Path, state: &DoctorVaultState) -> Result<(), AppError> {
     if let Some(parent) = path.parent() {
         fs::create_dir_all(parent).map_err(|error| {
             AppError::message(format!("create .agentero for doctor state: {error}"))
@@ -140,8 +145,7 @@ pub fn save_doctor_state(vault: &Path, state: &DoctorVaultState) -> Result<(), A
     };
     let body = serde_json::to_string_pretty(&cleaned)
         .map_err(|error| AppError::message(format!("serialize doctor state: {error}")))?;
-    fs::write(&path, format!("{body}\n"))
-        .map_err(|error| AppError::message(format!("write doctor state: {error}")))?;
+    crate::fs::atomic_write(path, format!("{body}\n").as_bytes())?;
     Ok(())
 }
 
@@ -152,6 +156,8 @@ pub fn set_ignored_alias_paths(
     ignore: bool,
 ) -> Result<DoctorVaultState, AppError> {
     crate::fs::ensure_vault_dir(vault)?;
+    let path = doctor_state_path(vault);
+    let _lock = crate::fs::SidecarLock::acquire(&path)?;
     let mut state = load_doctor_state(vault);
     let mut set = state
         .ignored_alias_paths
@@ -171,7 +177,7 @@ pub fn set_ignored_alias_paths(
         }
     }
     state.ignored_alias_paths = set.into_iter().collect();
-    save_doctor_state(vault, &state)?;
+    save_doctor_state_unlocked(&path, &state)?;
     Ok(load_doctor_state(vault))
 }
 

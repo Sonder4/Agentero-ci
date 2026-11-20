@@ -82,17 +82,26 @@ pub fn record_vault(path: &Path) -> Result<(), CliError> {
         .unwrap_or_else(|_| path.to_path_buf())
         .to_string_lossy()
         .to_string();
-    let mut cfg = load()?;
-    if cfg.known_vaults.iter().any(|p| p == &path) {
-        return Ok(());
-    }
-    cfg.known_vaults.push(path);
-    save(&cfg)?;
-    Ok(())
+    update(|cfg| {
+        if !cfg.known_vaults.iter().any(|p| p == &path) {
+            cfg.known_vaults.push(path);
+        }
+        Ok(())
+    })
+}
+
+/// Serialize read/modify/write operations with other CLI processes.
+pub fn update(change: impl FnOnce(&mut CliConfig) -> Result<(), CliError>) -> Result<(), CliError> {
+    let path = config_path()?;
+    let _lock = agentero_core::fs::SidecarLock::acquire(&path)?;
+    let mut cfg = load_from(&path, legacy_config_dir().as_deref())?;
+    change(&mut cfg)?;
+    save_to(&path, &cfg)
 }
 
 pub fn load() -> Result<CliConfig, CliError> {
     let path = config_path()?;
+    let _lock = agentero_core::fs::SidecarLock::acquire(&path)?;
     load_from(&path, legacy_config_dir().as_deref())
 }
 
@@ -165,12 +174,6 @@ fn migrate_config_file(path: &Path, legacy_dir: Option<&Path>) -> Result<CliConf
         }
         Err(error) => Err(error.error.into()),
     }
-}
-
-pub fn save(cfg: &CliConfig) -> Result<PathBuf, CliError> {
-    let path = config_path()?;
-    save_to(&path, cfg)?;
-    Ok(path)
 }
 
 fn save_to(path: &Path, cfg: &CliConfig) -> Result<(), CliError> {

@@ -41,6 +41,17 @@ use std::sync::Arc;
 use tauri::Emitter;
 use tauri::Manager;
 
+#[cfg(not(target_os = "ios"))]
+static SERVICE_SETTINGS_CHANGED: std::sync::OnceLock<tokio::sync::watch::Sender<()>> =
+    std::sync::OnceLock::new();
+
+#[cfg(not(target_os = "ios"))]
+pub(crate) fn reconcile_service_settings() {
+    if let Some(changes) = SERVICE_SETTINGS_CHANGED.get() {
+        changes.send_replace(());
+    }
+}
+
 #[cfg(windows)]
 fn webview_proxy_url(settings_store: &AppSettingsStore) -> Option<tauri::Url> {
     let (enabled, configured) = settings_store.network_proxy_config();
@@ -362,48 +373,48 @@ pub fn run() {
             #[cfg(not(target_os = "ios"))]
             {
                 let handle = app.handle().clone();
-                settings_store.subscribe(move |s| {
-                    let ctrl = Arc::clone(handle.state::<Arc<ConnectorController>>().inner());
-                    let port = s.connector_port;
-                    // `set_port` is async (it may rebind the listener); the
-                    // result was always discarded and the controller emits its
-                    // own status event, so run it on the runtime.
-                    tauri::async_runtime::spawn(async move {
-                        let _ = ctrl.set_port(port).await;
-                    });
+                let (changes, mut receiver) = tokio::sync::watch::channel(());
+                let _ = SERVICE_SETTINGS_CHANGED.set(changes.clone());
+                settings_store.subscribe(move |_| {
+                    changes.send_replace(());
                 });
-            }
-            #[cfg(not(target_os = "ios"))]
-            {
-                let handle = app.handle().clone();
-                settings_store.subscribe(move |s| {
-                    let ctrl = Arc::clone(handle.state::<Arc<McpController>>().inner());
-                    let port = s.mcp_port;
-                    let translator =
-                        crate::features::paper::import::DEFAULT_TRANSLATOR_BASE_URL.to_string();
-                    let note_mode = s.paper_note_mode.clone();
-                    ctrl.set_translator_url(Some(translator));
-                    ctrl.set_paper_note_mode(note_mode);
-                    // `set_port` stops and restarts the listener even when the
-                    // port is unchanged; doing that on every settings change
-                    // (e.g. editing the tunnel ID) would briefly hide the MCP
-                    // status dot and disable the tunnel Start button.
-                    if port != ctrl.port() {
-                        tauri::async_runtime::spawn(async move {
-                            let _ = ctrl.set_port(port).await;
-                        });
+                tauri::async_runtime::spawn(async move {
+                    while receiver.changed().await.is_ok() {
+                        let Ok(snapshot) = handle.state::<AppSettingsStore>().get() else {
+                            continue;
+                        };
+                        let s = snapshot.settings;
+                        let connector =
+                            Arc::clone(handle.state::<Arc<ConnectorController>>().inner());
+                        if !s.connector_enabled && connector.status().enabled {
+                            connector.set_enabled(false).await;
+                        }
+                        if connector.status().port != s.connector_port {
+                            connector.set_port(s.connector_port).await;
+                        }
+                        if s.connector_enabled && !connector.status().enabled {
+                            connector.set_enabled(true).await;
+                        }
+                        let ctrl = Arc::clone(handle.state::<Arc<McpController>>().inner());
+                        let tunnel = Arc::clone(handle.state::<Arc<McpTunnelController>>().inner());
+                        let translator =
+                            crate::features::paper::import::DEFAULT_TRANSLATOR_BASE_URL.to_string();
+                        ctrl.set_translator_url(Some(translator));
+                        ctrl.set_paper_note_mode(s.paper_note_mode.clone());
+                        if !s.mcp_enabled && (ctrl.status().enabled || tunnel.is_running()) {
+                            crate::integration::mcp::commands::apply_enabled(&ctrl, &tunnel, false)
+                                .await;
+                        }
+                        if ctrl.port() != s.mcp_port {
+                            crate::integration::mcp::commands::apply_port(&ctrl, s.mcp_port).await;
+                        }
+                        if s.mcp_enabled && !ctrl.status().enabled {
+                            crate::integration::mcp::commands::apply_enabled(&ctrl, &tunnel, true)
+                                .await;
+                        }
+                        let mcp_url = format!("http://127.0.0.1:{}/mcp", s.mcp_port);
+                        tunnel.mcp_url_changed(mcp_url).await;
                     }
-                });
-            }
-            #[cfg(not(target_os = "ios"))]
-            {
-                let handle = app.handle().clone();
-                settings_store.subscribe(move |s| {
-                    let tunnel = Arc::clone(handle.state::<Arc<McpTunnelController>>().inner());
-                    let mcp_url = format!("http://127.0.0.1:{}/mcp", s.mcp_port);
-                    tauri::async_runtime::spawn(async move {
-                        let _ = tunnel.mcp_url_changed(mcp_url).await;
-                    });
                 });
             }
             {
@@ -437,6 +448,12 @@ pub fn run() {
             settings.network_proxy_enabled,
             &settings.network_proxy_url,
         )?;
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::features::system::settings::watcher::spawn(app.handle().clone());
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::features::agent::registry::watcher::spawn(app.handle().clone());
+        #[cfg(not(any(target_os = "android", target_os = "ios")))]
+        crate::integration::plugins::spawn_watcher(app.handle().clone());
         #[cfg(not(any(target_os = "ios", target_os = "android")))]
         crate::features::paper::import::refresh_parser_config(&settings_store);
         let _ = agents.set_proxy(

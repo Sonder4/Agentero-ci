@@ -9,6 +9,7 @@ pub mod mark;
 pub mod mcp;
 pub mod open;
 pub mod paper;
+pub mod settings;
 pub mod sync;
 pub mod table;
 pub mod translate;

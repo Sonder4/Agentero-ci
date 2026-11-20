@@ -8,6 +8,7 @@
 - 不查询或展示本机 hostname / OS 身份。
 - 保存：`settings_set` → 广播 `settings:changed` 跨窗口同步。
 - 落盘：XDG `$XDG_CONFIG_HOME/agentero/settings.json`。
+- CLI：`agentero settings` 与 UI 共用同一文件和写锁。运行中 Host 发现外部 revision 后会重新归一化、刷新领域订阅并广播 `settings:changed`，设置窗无需重启即可更新。
 - 加载策略：设置 webview 不加载完整 `App`，也不加载 PDF 引擎与 KaTeX（二者随 `App` 动态 import）。各分区 pane 按 `lazy()` 分 chunk；**当前分区**的 pane 与外壳并行预热（`preloadSettingsPane`），避免窗口刚可交互时才去拉 pane 而卡一下；其余分区首次访问才加载，已访问的保持挂载。
 - 通用页的「网络代理」是 Host 级配置，启用后用于 Host 创建的 HTTP(S)/SOCKS 请求，并同步注入本地与远端 Agent 进程的 `HTTP_PROXY` / `HTTPS_PROXY` / `ALL_PROXY`，同时合并注入 `NO_PROXY=127.0.0.1,localhost,::1` 回环豁免（用户已有的 `NO_PROXY` 条目保留在前）——OpenCode 的 ACP CLI 经 127.0.0.1 访问自身 serve 子进程，回环流量不能走代理（[#638](../bug_fix/opencode-proxy-loopback-models.md)）。旧版 Settings → Agent 的代理配置会在首次启动时迁移。
 
@@ -132,6 +133,7 @@
 
 - UI：`src/components/settings/`
 - 状态：`src/lib/settings/`
+- 已迁移的写作、Agent、Zotero 和显示偏好与 CLI 共享 `settings.json` 的 `frontendPreferences`；首次迁移保留已存在的共享值。详见 [CLI 配置](../backend/cli.md#应用设置settings)。
 - 更新服务：`src/lib/update/`
 
 ## 账户入口

@@ -31,6 +31,7 @@ pub async fn connector_set_enabled(
     let op = OpTimer::start_with("connector_set_enabled", format!("enabled={}", args.enabled));
     let ctrl = Arc::clone(&ctrl);
     let status = ctrl.set_enabled(args.enabled).await;
+    crate::app::reconcile_service_settings();
     if let Some(err) = status.last_error.as_deref() {
         if !err.is_empty() && args.enabled {
             op.finish_err_msg("connector", err);
@@ -96,5 +97,7 @@ pub async fn connector_set_port(
     args: ConnectorSetPortArgs,
 ) -> Result<ApiResult<ConnectorStatus>, String> {
     let ctrl = Arc::clone(&ctrl);
-    Ok(ApiResult::ok(ctrl.set_port(args.port).await))
+    let status = ctrl.set_port(args.port).await;
+    crate::app::reconcile_service_settings();
+    Ok(ApiResult::ok(status))
 }

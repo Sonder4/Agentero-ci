@@ -52,11 +52,12 @@ export function getSettings(): AppSettings {
 }
 
 /** Persist and broadcast a full settings snapshot. */
-function updateSettings(next: AppSettings): void {
+function updateSettings(next: AppSettings, previous: AppSettings): void {
 	settingsStore.setState(next, true);
-	saveSettings(next);
+	saveSettings(next, previous);
 }
 
 export function patchSettings(patch: Partial<AppSettings>): void {
-	updateSettings({ ...settingsStore.getState(), ...patch });
+	const previous = settingsStore.getState();
+	updateSettings({ ...previous, ...patch }, previous);
 }

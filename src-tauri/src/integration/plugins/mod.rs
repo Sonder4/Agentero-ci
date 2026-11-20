@@ -49,6 +49,7 @@ pub struct PluginManager(
     Mutex<HashMap<String, Arc<Loaded>>>,
     Mutex<()>,
     Mutex<HashMap<String, (PathBuf, Vec<String>)>>,
+    Mutex<Option<serde_json::Value>>,
 );
 
 impl PluginManager {

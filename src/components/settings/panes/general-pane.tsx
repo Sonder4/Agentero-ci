@@ -633,10 +633,13 @@ export function GeneralPane({
 				onKeyDraftChange={setEasyScholarKeyDraft}
 				onCommitKey={async (value) => {
 					const trimmed = value.trim();
-					const next = await saveSettingsAsync({
-						...settings,
-						easyScholarKey: trimmed,
-					});
+					const next = await saveSettingsAsync(
+						{
+							...settings,
+							easyScholarKey: trimmed,
+						},
+						settings,
+					);
 					setEasyScholarKeyDraft(next.easyScholarKey);
 				}}
 			/>

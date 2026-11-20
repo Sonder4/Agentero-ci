@@ -26,7 +26,7 @@ use tokio::sync::oneshot;
 
 pub const MCP_STATUS_EVENT: &str = "mcp:status";
 /// Default loopback port. Desktop settings and `agentero mcp serve` share it.
-pub const DEFAULT_MCP_PORT: u16 = 8765;
+pub use agentero_core::settings_schema::DEFAULT_MCP_PORT;
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]

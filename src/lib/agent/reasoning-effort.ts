@@ -1,7 +1,8 @@
 import type { AgentEffortChoice } from "@/lib/agent/api";
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 import { readJsonStorage, writeJsonStorage } from "@/lib/core/storage";
 
-const EFFORT_PREF_KEY = "agentero-agent-reasoning-effort-pref";
+const EFFORT_PREF_KEY = PREFERENCE_STORAGE_KEYS.agentReasoning;
 
 // ACP has no universal strength ordering. Keep in sync with session/config.rs.
 const EFFORT_ORDER = [

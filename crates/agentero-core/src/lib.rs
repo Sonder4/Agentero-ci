@@ -7,6 +7,7 @@
 //! `agentero_lib::features::*`; host-side effects (event emit, job spawns)
 //! route through [`app_handle::HostHooks`].
 
+pub mod agent_schema;
 pub mod app_handle;
 pub mod blocking;
 pub mod cancel;
@@ -25,6 +26,7 @@ pub mod perf;
 pub mod plugins;
 pub mod process;
 pub mod remote;
+pub mod settings_schema;
 pub mod sqlite;
 pub mod time;
 pub mod usage;

@@ -13,7 +13,6 @@ import {
 	saveSettingsAsync,
 	subscribeSettings,
 } from "@/lib/settings";
-import { applyExternalSettings } from "@/lib/settings/store";
 import { closeCurrentWindow } from "@/lib/shell/close-window";
 import { resolveShortcutId } from "@/lib/shell/shortcuts";
 import { SettingsContent } from "./settings-content";
@@ -124,17 +123,18 @@ export function SettingsNativeRoot() {
 		[handleVaultChange],
 	);
 
-	const handleChange = useCallback(async (next: typeof settings) => {
-		const previous = loadSettings();
-		setSettings(next);
-		try {
-			await saveSettingsAsync(next);
-		} catch (e) {
-			applyExternalSettings(previous);
-			setSettings(previous);
-			notifyError(errorMessage(e));
-		}
-	}, []);
+	const handleChange = useCallback(
+		async (next: typeof settings) => {
+			setSettings(next);
+			try {
+				await saveSettingsAsync(next, settings);
+			} catch (e) {
+				setSettings(loadSettings());
+				notifyError(errorMessage(e));
+			}
+		},
+		[settings],
+	);
 
 	return (
 		<div className="flex h-screen w-screen flex-col overflow-hidden bg-background">

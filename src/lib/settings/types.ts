@@ -1,3 +1,4 @@
+import type { Json } from "@/lib/core/bindings";
 import type {
 	PaperTreeLabelMode,
 	PaperTreeSortMode,
@@ -169,6 +170,8 @@ export function isPaperNoteMode(v: unknown): v is PaperNoteMode {
 }
 
 export type AppSettings = {
+	/** Feature preferences shared with the CLI, keyed by feature. */
+	frontendPreferences: Record<string, Json>;
 	/** Null disables a command; absent ids use their default shortcut. */
 	shortcutOverrides: ShortcutOverrides;
 	// General

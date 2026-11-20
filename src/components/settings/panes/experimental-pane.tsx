@@ -150,7 +150,7 @@ export function ExperimentalPane({
 
 		setBusy(true);
 		try {
-			const saved = await saveSettingsAsync(nextSettings);
+			const saved = await saveSettingsAsync(nextSettings, settings);
 			patch({ decision: saved.decision });
 			setDraft({});
 			setTimeoutDraft(null);

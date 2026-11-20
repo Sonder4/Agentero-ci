@@ -1,3 +1,4 @@
+import { PREFERENCE_STORAGE_KEYS } from "@/lib/core/preference-keys";
 /**
  * When the writing folder is pushed. The address itself lives with the
  * GitHub link. Nothing here runs until that link exists.
@@ -9,7 +10,7 @@ import {
 	writeJsonStorage,
 } from "@/lib/core/storage";
 
-export const WRITING_SYNC_MODE_KEY = "agentero.writing.syncMode.v1";
+export const WRITING_SYNC_MODE_KEY = PREFERENCE_STORAGE_KEYS.writingSync;
 
 export const WRITING_SYNC_INTERVALS = [5, 15, 30, 60] as const;
 

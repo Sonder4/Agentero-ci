@@ -6,7 +6,9 @@
 //! at app assembly, so this feature imports no other domain.
 
 use crate::core::error::{map_err, ApiResult};
-use crate::features::system::settings::{AppSettings, AppSettingsStore, SettingsGetResult};
+use crate::features::system::settings::{
+    AppSettings, AppSettingsStore, FrontendPreferenceUpdate, SettingsGetResult,
+};
 use agentero_core::features::paper::import::institution_proxy::InstitutionProxyPreset;
 use tauri::{AppHandle, Emitter, Manager, State, Url, WebviewUrl, WebviewWindowBuilder};
 
@@ -125,6 +127,26 @@ pub fn settings_get(store: State<'_, AppSettingsStore>) -> ApiResult<SettingsGet
     }
 }
 
+/// Atomically apply frontend preference changes, preserving other settings.
+#[tauri::command]
+#[specta::specta]
+pub fn settings_update_frontend_preferences(
+    app: AppHandle,
+    store: State<'_, AppSettingsStore>,
+    updates: Vec<FrontendPreferenceUpdate>,
+) -> ApiResult<AppSettings> {
+    if let Err(error) = store.reload_if_changed() {
+        return map_err(error);
+    }
+    match store.update_frontend_preferences(updates) {
+        Ok(settings) => {
+            let _ = app.emit("settings:changed", &settings);
+            ApiResult::ok(settings)
+        }
+        Err(error) => map_err(error),
+    }
+}
+
 /// Detected OS system proxy (Windows "Internet Settings"). Host requests
 /// already fall back to it when the app proxy is off; the updater plugin and
 /// the settings UI query it here.
@@ -188,14 +210,16 @@ pub fn settings_set(
     app: AppHandle,
     store: State<'_, AppSettingsStore>,
     settings: AppSettings,
+    base: Option<AppSettings>,
 ) -> ApiResult<AppSettings> {
-    if let Err(e) = crate::core::http::configure_proxy(
-        settings.network_proxy_enabled,
-        &settings.network_proxy_url,
-    ) {
-        return map_err(e);
+    match store.reload_if_changed() {
+        Ok(Some(reloaded)) => {
+            let _ = app.emit("settings:changed", &reloaded);
+        }
+        Ok(None) => {}
+        Err(error) => return map_err(error),
     }
-    match store.set(settings) {
+    match store.set_with_base(settings, base) {
         Ok(s) => {
             // Keep every window's settings cache fresh (settings window, main windows).
             let _ = app.emit("settings:changed", &s);

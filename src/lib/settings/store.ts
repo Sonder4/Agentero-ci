@@ -107,10 +107,12 @@ let cache: AppSettings = {
 };
 let loaded = false;
 let loadPromise: Promise<AppSettings> | null = null;
+let persistQueue: Promise<void> = Promise.resolve();
 
 function cloneSettings(s: AppSettings): AppSettings {
 	return {
 		...s,
+		frontendPreferences: structuredClone(s.frontendPreferences),
 		shortcutOverrides: normalizeShortcutOverrides(s.shortcutOverrides),
 		libraryColumns: s.libraryColumns.map((c) => ({ ...c })),
 		pdfAsk: { ...s.pdfAsk },
@@ -154,8 +156,9 @@ export async function ensureSettingsLoaded(): Promise<AppSettings> {
 				if (!res.existed) {
 					const legacy = readLegacyLocalStorage();
 					if (legacy) {
+						const base = next;
 						next = normalizeSettings(legacy);
-						await persistToHost(next);
+						await persistToHost(next, base);
 					}
 				}
 				// Drop dual-source: file is authoritative after first load.
@@ -182,11 +185,14 @@ export async function ensureSettingsLoaded(): Promise<AppSettings> {
  * Update cache and persist to Host `settings.json` (Tauri).
  * Fire-and-forget on the write path so UI stays snappy; errors are logged.
  */
-export function saveSettings(settings: AppSettings): void {
+export function saveSettings(
+	settings: AppSettings,
+	base = loadSettings(),
+): void {
 	const next = normalizeSettings(settings);
 	applyExternalSettings(next);
 	if (!isTauri()) return;
-	void persistToHost(next).catch((e) => {
+	void persistToHost(next, base).catch((e) => {
 		console.warn("[settings] save failed", e);
 	});
 }
@@ -252,19 +258,42 @@ export function initSettingsSync(): void {
 /** Awaitable save (settings UI / tests). */
 export async function saveSettingsAsync(
 	settings: AppSettings,
+	base = loadSettings(),
 ): Promise<AppSettings> {
 	const next = normalizeSettings(settings);
 	applyExternalSettings(next);
 	if (!isTauri()) return loadSettings();
-	return persistToHost(next);
+	return persistToHost(next, base);
 }
 
-async function persistToHost(settings: AppSettings): Promise<AppSettings> {
-	const res = await callApi(() => commands.settingsSet(settings), {
-		fallback: "settings_set failed",
-	});
-	setCache(normalizeSettings(fromSettingsWire(res)));
-	return loadSettings();
+async function persistToHost(
+	settings: AppSettings,
+	base: AppSettings,
+): Promise<AppSettings> {
+	const request = persistQueue.then(() =>
+		callApi(() => commands.settingsSet(settings, base), {
+			fallback: "settings_set failed",
+		}),
+	);
+	persistQueue = request.then(
+		() => undefined,
+		() => undefined,
+	);
+	try {
+		const res = await request;
+		setCache(normalizeSettings(fromSettingsWire(res)));
+		return loadSettings();
+	} catch (error) {
+		try {
+			const current = await callApi(() => commands.settingsGet(), {
+				fallback: "settings_get failed",
+			});
+			applyExternalSettings(fromSettingsWire(current.settings));
+		} catch (reloadError) {
+			console.warn("[settings] reload after save failed", reloadError);
+		}
+		throw error;
+	}
 }
 
 function readLegacyLocalStorage(): AppSettings | null {
@@ -322,6 +351,13 @@ function normalizePartial(
 		...rest
 	} = parsed;
 	const merged = { ...DEFAULT_SETTINGS, ...rest };
+	if (
+		!parsed.frontendPreferences ||
+		typeof parsed.frontendPreferences !== "object" ||
+		Array.isArray(parsed.frontendPreferences)
+	) {
+		merged.frontendPreferences = {};
+	}
 	merged.shortcutOverrides = normalizeShortcutOverrides(
 		parsed.shortcutOverrides,
 	);
