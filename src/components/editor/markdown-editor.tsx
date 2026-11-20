@@ -17,6 +17,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { ChatGPTIcon } from "@/components/agent/open-in-chat";
 import { MarkdownDocProvider } from "@/components/editor/context/markdown-doc-context";
 import { Editor, EditorContainer } from "@/components/editor/editor-surface";
 import { WikiEmbedProjectionProvider } from "@/components/editor/embeds/projection-context";
@@ -774,6 +775,7 @@ export const MarkdownEditor = memo(function MarkdownEditor({
 		onOpenChange: handleContextMenuOpenChange,
 		copy: handleContextMenuCopy,
 		copyAsMarkdown: handleContextMenuCopyAsMarkdown,
+		askChatGpt: handleContextMenuAskChatGpt,
 		cut: handleContextMenuCut,
 		paste: handleContextMenuPaste,
 		insertLink: insertContextMenuLink,
@@ -1203,6 +1205,18 @@ export const MarkdownEditor = memo(function MarkdownEditor({
 										</EditorContainer>
 									</ContextMenuTrigger>
 									<ContextMenuContent className="w-56">
+										{contextMenuSelectionExpanded && (
+											<>
+												<ContextMenuItem
+													data-ui-action="chatgpt.selection.ask"
+													onSelect={handleContextMenuAskChatGpt}
+												>
+													<ChatGPTIcon />
+													{i18n.t("viewer:selection.openInChatGpt")}
+												</ContextMenuItem>
+												<ContextMenuSeparator />
+											</>
+										)}
 										<ContextMenuItem
 											disabled={!contextMenuCapabilities.cut}
 											onSelect={() => {

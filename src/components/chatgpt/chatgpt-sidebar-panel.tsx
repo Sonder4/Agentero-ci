@@ -77,7 +77,13 @@ export function ChatGptSidebarPanel({
 			const result = await commands.chatgptSidebarInsertDraft(
 				chatGptQuoteDraft(quotes, question),
 			);
-			if (result.status === "error") notifyError(result.error);
+			if (result.status === "error") {
+				notifyError(
+					result.error === "composer_occupied"
+						? t("chatgptQuote.draftOccupied")
+						: t("chatgptQuote.insertFailed"),
+				);
+			}
 		} catch (error) {
 			notifyError(errorText(error));
 		} finally {

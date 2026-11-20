@@ -31,7 +31,9 @@
 		"insert": "填入 ChatGPT 草稿",
 		"insertHint": "填入当前 ChatGPT 对话的空输入框",
 		"copy": "复制草稿",
-		"copyFailed": "无法复制 ChatGPT 草稿。"
+		"copyFailed": "无法复制 ChatGPT 草稿。",
+		"draftOccupied": "ChatGPT 输入框已有草稿。可用「复制草稿」手动添加引用。",
+		"insertFailed": "无法填入 ChatGPT 草稿。请重试，或使用「复制草稿」。"
 	},
 	"commands": {
 		"catApp": "应用",

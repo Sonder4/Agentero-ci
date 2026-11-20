@@ -9,6 +9,7 @@ import { copyTextToClipboard } from "@/lib/core/clipboard";
 import { errorText } from "@/lib/core/error";
 import { notifyError } from "@/lib/core/notify";
 import { openExternalUrl } from "@/lib/core/open-external";
+import { basenameOf } from "@/lib/core/path";
 import { isTauri } from "@/lib/core/tauri";
 import { openRightTabInRail, setLayoutMode } from "@/lib/shell/ui-store";
 
@@ -44,17 +45,20 @@ function clipUtf8(value: string, maxBytes: number): string {
 function selectionLocation(
 	selection: ChatGptSelectionSource & { sourcePath: string },
 ): string {
+	const name = basenameOf(selection.sourcePath);
 	const path =
 		selection.page != null
-			? `${selection.sourcePath} (page ${selection.page})`
+			? `${name} (page ${selection.page})`
 			: selection.lineFrom != null
-				? `${selection.sourcePath} (lines ${selection.lineFrom}${
+				? `${name} (lines ${selection.lineFrom}${
 						selection.lineTo != null && selection.lineTo > selection.lineFrom
 							? `-${selection.lineTo}`
 							: ""
 					})`
-				: selection.sourcePath;
-	return selection.sourceTitle ? `${selection.sourceTitle} — ${path}` : path;
+				: name;
+	return selection.sourceTitle && selection.sourceTitle !== name
+		? `${selection.sourceTitle} — ${path}`
+		: path;
 }
 
 function quoteMarkdown(text: string): string {
@@ -93,11 +97,11 @@ function presentChatGptSidebar(prompt: string | undefined): void {
 async function requestMainWindowOpen(
 	payload: ChatGptOpenInMainPayload,
 ): Promise<void> {
-	const [{ WebviewWindow }, { emitTo }] = await Promise.all([
-		import("@tauri-apps/api/webviewWindow"),
+	const [{ Window }, { emitTo }] = await Promise.all([
+		import("@tauri-apps/api/window"),
 		import("@tauri-apps/api/event"),
 	]);
-	const main = await WebviewWindow.getByLabel("main");
+	const main = await Window.getByLabel("main");
 	if (!main) throw new Error("Agentero main window is unavailable");
 	await emitTo("main", CHATGPT_OPEN_IN_MAIN_EVENT, payload);
 	await main.unminimize();

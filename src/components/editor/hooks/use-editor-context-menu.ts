@@ -11,6 +11,7 @@ import {
 	useState,
 } from "react";
 import i18n from "@/i18n";
+import { openChatGptQuote } from "@/lib/chatgpt/window";
 import {
 	copyTextToClipboard,
 	readTextFromClipboard,
@@ -24,6 +25,7 @@ import {
 	type EditorLinkTemplateKind,
 	insertEditorLinkTemplate,
 } from "@/lib/markdown/editor-context-menu";
+import { resolveMarkdownSelectionLinesForPath } from "@/lib/markdown/markdown-selection-lines-registry";
 import {
 	mathClipboardPayload,
 	serializeSelectionAsMarkdown,
@@ -59,6 +61,7 @@ export type EditorContextMenu = {
 	copy: () => Promise<void>;
 	/** Copy the current selection (or selected blocks) as Markdown source. */
 	copyAsMarkdown: () => Promise<void>;
+	askChatGpt: () => void;
 	cut: () => Promise<void>;
 	paste: () => Promise<void>;
 	insertLink: (kind: EditorLinkTemplateKind) => void;
@@ -260,6 +263,17 @@ export function useEditorContextMenu({
 		});
 	}, [editor, takeSelection]);
 
+	const askChatGpt = useCallback(() => {
+		const sourcePath = filePathRef.current ?? undefined;
+		const lines = sourcePath
+			? resolveMarkdownSelectionLinesForPath(sourcePath)
+			: null;
+		const markdown = hasSelectedBlocks(editor)
+			? serializeSelectedBlocksAsMarkdown(editor)
+			: serializeSelectionAsMarkdown(editor, takeSelection());
+		if (markdown) void openChatGptQuote(markdown, { sourcePath, ...lines });
+	}, [editor, filePathRef, takeSelection]);
+
 	const cut = useCallback(async () => {
 		if (readOnly) return;
 		if (hasSelectedBlocks(editor)) {
@@ -377,6 +391,7 @@ export function useEditorContextMenu({
 		onOpenChange,
 		copy,
 		copyAsMarkdown,
+		askChatGpt,
 		cut,
 		paste,
 		insertLink,

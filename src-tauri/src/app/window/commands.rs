@@ -308,7 +308,7 @@ pub async fn chatgpt_sidebar_open(
 
 #[tauri::command]
 #[specta::specta]
-pub fn chatgpt_sidebar_insert_draft(
+pub async fn chatgpt_sidebar_insert_draft(
     app: AppHandle,
     caller: tauri::Webview,
     draft: String,
@@ -323,18 +323,58 @@ pub fn chatgpt_sidebar_insert_draft(
         .get_webview(CHATGPT_SIDEBAR_WEBVIEW_LABEL)
         .ok_or_else(|| "chatgpt_sidebar_unavailable".to_string())?;
     let draft = serde_json::to_string(&draft).map_err(|error| error.to_string())?;
+    let (send, mut receive) = tokio::sync::mpsc::channel(1);
+    let op = OpTimer::start("chatgpt_sidebar_insert_draft");
     webview.set_focus().map_err(|error| error.to_string())?;
     webview
-        .eval(format!(
+        .eval_with_callback(format!(
             r##"(() => {{
-                if (location.origin !== "https://chatgpt.com") return;
-                const editor = document.querySelector("#prompt-textarea[contenteditable=true], textarea#prompt-textarea");
-                if (!editor || (editor.value ?? editor.textContent).trim() || editor.querySelector("img, [contenteditable=false]")) return;
+                if (location.origin !== "https://chatgpt.com") return "wrong_origin";
+                const visibleEditors = Array.from(document.querySelectorAll("textarea, [contenteditable]"))
+                    .filter(element => (element instanceof HTMLTextAreaElement || element.isContentEditable)
+                        && !element.matches(":disabled, [readonly], [aria-disabled=true]")
+                        && !element.closest("[inert], [aria-hidden=true], [role=dialog]")
+                        && element.getClientRects().length > 0
+                        && getComputedStyle(element).visibility === "visible");
+                const namedEditor = visibleEditors.find(element => element.matches(
+                    "#prompt-textarea, [data-testid=prompt-textarea], [aria-label*='ChatGPT' i], [placeholder*='ChatGPT' i]"));
+                const composerEditors = visibleEditors.filter(element =>
+                    element.closest("main form, [role=main] form, [data-testid*=composer], [id*=composer]"));
+                const editor = namedEditor ?? (composerEditors.length === 1 ? composerEditors[0] : null);
+                if (!editor) return "composer_missing";
+                const readDraft = () => editor instanceof HTMLTextAreaElement ? editor.value : editor.innerText;
+                if (readDraft().trim() || editor.querySelector("img, [contenteditable=false]")) return "composer_occupied";
+                const draft = {draft};
                 editor.focus();
-                document.execCommand("insertText", false, {draft});
+                document.execCommand("insertText", false, draft);
+                const compact = text => text.replace(/\s+/g, " ").trim();
+                return compact(readDraft()) === compact(draft) ? "inserted" : "insert_failed";
             }})();"##
-        ))
-        .map_err(|error| error.to_string())
+        ), move |result| {
+            let _ = send.try_send(result);
+        })
+        .map_err(|error| error.to_string())?;
+    let result = tokio::time::timeout(std::time::Duration::from_secs(3), receive.recv()).await;
+    let status = match result {
+        Ok(Some(result)) => serde_json::from_str::<String>(&result).ok(),
+        _ => None,
+    };
+    match status.as_deref() {
+        Some("inserted") => {
+            op.finish_ok();
+            Ok(())
+        }
+        status => {
+            let code = match status {
+                Some("wrong_origin") => "wrong_origin",
+                Some("composer_missing") => "composer_missing",
+                Some("composer_occupied") => "composer_occupied",
+                _ => "insert_failed",
+            };
+            op.finish_err_msg(code, code);
+            Err(code.into())
+        }
+    }
 }
 
 /// Hide the embedded ChatGPT WebView when the right rail is closed or another

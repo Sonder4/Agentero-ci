@@ -18,7 +18,7 @@ Agentero 在主窗口右侧栏内嵌一个 ChatGPT 子 WebView，加载 `https:/
 - 前端用 `ResizeObserver` 和窗口 resize 事件测量右侧占位区，向 Host 发送 CSS 逻辑坐标。Host 用这些边界创建、定位和缩放子 WebView，页面本身仍然铺满整个侧栏。
 - 右侧栏切换使用 `agent` / `chatgpt` 两个 rail surface。Agent 面板与 ChatGPT 子 WebView 的状态都保留在各自 surface 中，切换不会重建 Agent 会话或丢失 ChatGPT 当前页面。
 - Tauri capability 以 `webviews` 精确匹配本地 Agentero WebView。`chatgpt-sidebar` 不在匹配列表中，因此远程页面没有 Agentero Tauri IPC、Vault 或文档访问能力。登录提供的 `https` / `about:blank` 弹窗由底层 WebView 原生创建，同样没有 Agentero capability。
-- 引用和补充问题保存在本次主窗口的内存。引用只包含用户选择的文本和相关出处，来源 URL 会去除 query/hash。
+- 引用和补充问题保存在本次主窗口的内存。引用包含用户选中的文本及出处。本地文件使用文件名和可用的页码或行号，网页 URL 会去除 query/hash。
 - 划词草稿通过显式点击填入网页输入框。侧栏另有「复制草稿」按钮供手动粘贴。
 - Windows 上的 profile 位于 `%LOCALAPPDATA%\<Tauri identifier>\EBWebView`。首次打开 ChatGPT 模式时需要登录，登录 Cookie 随该 profile 持久保存，普通应用更新和进程重启不会清除登录态。Clear browsing data、切换 Tauri identifier 或删除该目录会失去登录态，必须重新登录。它与 Google Chrome 的 Cookie 登录态分开。
 - WebView2 代理在首个窗口创建前从 Agentero 当前设置解析。显式代理开启时，主窗口、设置、文档、功能窗、机构登录窗和 ChatGPT 子 WebView 都接收同一份进程级代理快照，因此可以加入同一个 WebView2 环境。显式代理关闭时不向 Tauri 传入代理 URL，由 WebView2 直接遵循 Windows 系统代理、PAC 和 bypass 规则。代理属于环境级配置，修改后需要重启 Agentero 才会应用到 WebView 页面。由于 Tauri/Wry 从 `Url::port()` 构造代理端点，显式 HTTP / SOCKS5 代理必须包含非默认端口。
@@ -45,4 +45,4 @@ Agentero 的重建只采用公开可观察的 Web 入口和产品边界。桌面
 
 ## 验证范围
 
-既有侧栏曾在 Windows WebView2 开发版验证打开、切换、调整宽度、划词交接和重启后保留登录。新的右键与草稿流程使用同一子 WebView。macOS WKWebView 与 Linux WebKitGTK 尚未实机验证。
+用 [Agentero CLI](../backend/cli.md#触发运行中窗口的控件) 在 Windows WebView2 开发版验证了富文本笔记的全选、右键菜单、添加引用、补充问题和填入网页草稿，也验证了文档弹窗将引用交回主窗口侧栏。WebView 确认草稿已填入，并在输入框已有内容时保留它。侧栏重启后继续使用原有登录。PDF 及网页的鼠标划词流程、macOS WKWebView 和 Linux WebKitGTK 尚未完成本次实机验收。
