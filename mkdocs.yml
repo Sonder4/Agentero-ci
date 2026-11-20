@@ -38,6 +38,7 @@ nav:
       - 使用 Zotero Connector: usage/zotero.md
       - 使用本地插件: usage/plugins.md
       - 打开远程 Vault: usage/remote-vault.md
+      - 配置 OpenAI 兼容翻译: usage/translate-openai-compatible.md
 
   - 前端:
       - 概览: frontend/index.md
@@ -45,11 +46,18 @@ nav:
       - Dockview 工作区: frontend/workspace.md
       - 文件树: frontend/vault-tree.md
       - 论文库 Library: frontend/library.md
+      - 广场 Plaza: frontend/plaza.md
       - 入库 UI: frontend/paper-import.md
       - Markdown 编辑: frontend/markdown.md
+      - 写作: frontend/writing.md
+      - LaTeX 写作与编译: frontend/latex.md
+      - 写作模板: frontend/writing-templates.md
+      - 科研表格: frontend/research-tables.md
       - PDF 阅读与划词: frontend/pdf.md
       - PDF 版面分析（实验）: frontend/pdf-layout-analysis.md
+      - 应用内划词动作: frontend/selection.md
       - 网页论文阅读与划词: frontend/web-view.md
+      - ChatGPT Web 侧栏: frontend/chatgpt-mode.md
       - Agent 面板: frontend/agent.md
       - 知乎 Agent: frontend/zhihu.md
       - 移动端: frontend/mobile.md
@@ -57,6 +65,7 @@ nav:
       - 命令面板: frontend/command-palette.md
       - 翻译: frontend/translate.md
       - 设置与主题: frontend/settings.md
+      - 云端能力（已停用）: frontend/cloud-capabilities.md
       - 新手引导: frontend/onboarding.md
       - 组件约定: frontend/components.md
 
@@ -68,18 +77,27 @@ nav:
       - 论文入库: backend/paper-import.md
       - Identifier Lookup: backend/identifier-lookup.md
       - 学术搜索 API 一览: backend/academic-search-apis.md
+      - 机构代理网关: backend/institution-proxy.md
       - 参考文献解析: backend/citation-parsing.md
       - Skill 导入: backend/skill-import.md
       - Zotero Connector: backend/connector.md
+      - Word 引用集成: backend/word.md
       - MCP Server: backend/mcp.md
       - 双链索引: backend/wiki.md
       - Agent Host: backend/agent.md
+      - 研究上下文: backend/context.md
+      - 决策层: backend/decision.md
+      - 本地插件系统: backend/plugins.md
       - 知乎接入: backend/zhihu.md
       - 远程 Vault: backend/remote.md
+      - 远程访问 Bridge: backend/bridge.md
       - 搜索: backend/search.md
       - 设置: backend/settings.md
+      - 本地桌面应用检测: backend/desktop-apps.md
       - 使用记录: backend/usage.md
       - 翻译: backend/translate.md
+      - LaTeX 编译与项目服务: backend/latex.md
+      - 实时 TeX 预览（rtex）: backend/rtex.md
       - 运行日志: backend/logging.md
       - Vault Doctor: backend/doctor.md
       - 遥测: backend/telemetry.md
@@ -92,12 +110,18 @@ nav:
       - 概览: development/index.md
       - 使用记录总结 (#239): development/usage-analytics.md
       - A2A 本机与远端协作: development/A2A.md
+      - 通用决策层设计草案: development/decision-layer.md
+      - "[RFC] 学术数据解析与补全架构": development/rfc-scholarly-data-resolution.md
+      - Vault 同步审计与重构提案: development/vault-sync-review.md
+      - ChatGPT Web 能力与桥接边界: development/chatgpt-web-capability-analysis.md
 
   - 测试:
       - 概览: test/index.md
       - BBox 标注与教学样例: test/bbox-annotation.md
       - OmniDocBench bbox 融合评测: test/omnidocbench-bbox.md
       - 性能测试轨迹: test/performance.md
+      - PDF 高清瓦片尺寸对照: test/pdf-tiling-performance.md
+      - PDF 可见页面优先渲染对照: test/pdf-visible-rendering-performance.md
       - 发布流程: test/release.md
       - macOS 签名与公证: test/macos-signing.md
       - iOS TestFlight: test/ios-testflight.md
@@ -129,12 +153,35 @@ nav:
       - "Windows PDF 翻页随机跳到首尾页（#539）": bug_fix/pdf-windows-scroll-endpoint-jump.md
       - Pi ACP 未使用 Vault 工作目录: bug_fix/pi-acp-vault-cwd.md
       - 左侧文件树偶发黑屏: bug_fix/vault-sidebar-blank-until-scroll.md
+      - Cargo 构建脚本读取了旧 worktree 路径: bug_fix/cargo-build-script-stale-worktree-path.md
+      - 开启网络代理后 OpenCode 模型列表为空: bug_fix/opencode-proxy-loopback-models.md
+      - PDF 批注导入因日期字符串失败: bug_fix/pdf-annotation-import-dates.md
+      - PDF 异步打开与卸载重叠时的文档泄漏: bug_fix/pdf-inflight-document-leak.md
+      - 版面分析切换论文时报 invalid session id: bug_fix/pdf-layout-shared-onnx-session.md
+      - 重复原生链接导致 PDF 首屏停顿: bug_fix/pdf-native-link-duplicates.md
+      - PDF 旋转页显示为未旋转页框: bug_fix/pdf-rotated-page-shell.md
+      - PDF 页面阴影与 WebKitGTK 滚动停顿: bug_fix/pdf-webkit-page-shadow.md
+      - "侧栏收起后无法再调整宽度（#1163）": bug_fix/rail-separator-unmount.md
+      - 同一笔记的两个分屏互相覆盖: bug_fix/split-pane-markdown-save.md
+      - 全文译文划选选错范围: bug_fix/translation-selection-link-preview.md
+      - 坚果云 WebDAV 根地址 PUT 404: bug_fix/webdav-jianguoyun-root-404.md
+      - Windows ACP 孤儿进程累积: bug_fix/windows-acp-orphan-processes.md
+      - Windows 内置 ACP 适配器在初始化前退出: bug_fix/windows-bundled-acp-node-path.md
+      - Windows 内置 Claude ACP 的 spawn EINVAL: bug_fix/windows-claude-bundled-spawn-einval.md
+      - Windows Dsh 静默退出与 npm 卸载目录不匹配: bug_fix/windows-dsh-runtime-and-uninstall.md
+      - Windows 触控板无法捏合缩放论文: bug_fix/windows-pdf-touchpad-pinch.md
+      - Windows 技能链接、并发写和远程目录删除失败: bug_fix/windows-symlink-replace-and-catalog-handle.md
+      - Windows 上 Zcode 索引不到 Vault Skills: bug_fix/zcode-acp-windows-skills-cwd.md
 
 markdown_extensions:
   - admonition
   - tables
   - toc:
       permalink: true
+      # Keep CJK heading anchors (GitHub-style), so `#中文标题` links resolve on the site too.
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - fenced_code
   - codehilite
 
