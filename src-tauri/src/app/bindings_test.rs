@@ -278,6 +278,8 @@ pub(crate) fn export_typescript_bindings() {
             crate::integration::mcp::commands::mcp_tunnel_stop,
             crate::app::open_request::commands::vault_open_take_pending,
             crate::app::open_request::commands::ui_request_take_pending,
+            crate::app::open_request::commands::ui_action_complete,
+            crate::app::open_request::commands::ui_action_take_pending,
             crate::features::system::updater::app_update_check::<tauri::Wry>,
             crate::features::cli_install::commands::cli_install_status::<tauri::Wry>,
             crate::features::cli_install::commands::cli_install_command::<tauri::Wry>,

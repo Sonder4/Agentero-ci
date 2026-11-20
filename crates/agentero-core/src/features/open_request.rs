@@ -34,6 +34,7 @@ pub const UI_ACTION_OPEN_PATH: &str = "open-path";
 pub const UI_ACTION_OPEN_WINDOW: &str = "open-window";
 pub const UI_ACTION_CLOSE_PATH: &str = "close-path";
 pub const UI_ACTION_SPLIT: &str = "split";
+pub const LOCAL_UI_ACTIONS: &[&str] = &["actions", "shortcut", "command", "click", "key", "fill"];
 
 /// Dockview split directions accepted by [`UI_ACTION_SPLIT`].
 pub const SPLIT_DIRECTIONS: &[&str] = &["left", "right", "above", "below", "within"];
@@ -165,6 +166,23 @@ impl UiRequestPayload {
             section: None,
             direction,
             reference,
+        }
+    }
+
+    pub fn local_action(
+        action: &str,
+        target: Option<String>,
+        window: String,
+        occurrence: Option<usize>,
+    ) -> Self {
+        Self {
+            action: action.into(),
+            vault_path: None,
+            path: target,
+            window: Some(window),
+            section: occurrence.map(|index| index.to_string()),
+            direction: None,
+            reference: Some(uuid::Uuid::new_v4().to_string()),
         }
     }
 
@@ -308,6 +326,9 @@ pub fn parse_ui_url(raw: &str) -> Result<UiRequestPayload, AppError> {
             .filter(|s| !s.trim().is_empty())
     };
     let action = param("action").ok_or_else(|| AppError::message("ui URL missing action query"))?;
+    if LOCAL_UI_ACTIONS.contains(&action.as_str()) {
+        return Err(AppError::message("UI controls require a local CLI request"));
+    }
     // Structural parse only; `handle_ui_request` validates (and surfaces errors).
     Ok(UiRequestPayload {
         action,
@@ -515,6 +536,124 @@ struct CliUiRequestFile {
     reference: Option<String>,
     /// Unix epoch seconds when the CLI wrote the request.
     ts: u64,
+}
+
+fn local_ui_dir() -> PathBuf {
+    agentero_config_dir().join("cli-ui-actions")
+}
+
+fn local_ui_id(req: &UiRequestPayload) -> Result<uuid::Uuid, AppError> {
+    let id = req
+        .reference
+        .as_deref()
+        .and_then(|id| uuid::Uuid::parse_str(id).ok())
+        .ok_or_else(|| AppError::message("invalid local UI request id"))?;
+    let window = req.window.as_deref().unwrap_or("");
+    if !(window == "main"
+        || window == "settings"
+        || window.starts_with("agentero-")
+        || window.starts_with("doc-")
+        || window.starts_with("feature-"))
+        || window.len() > 100
+        || !window
+            .bytes()
+            .all(|ch| ch.is_ascii_alphanumeric() || ch == b'-')
+    {
+        return Err(AppError::message("invalid Agentero window label"));
+    }
+    let valid_target = req.action == "actions"
+        || req.path.as_deref().is_some_and(|target| {
+            target.len() <= 4096
+                && (req.action == "fill"
+                    || (!target.trim().is_empty() && !target.chars().any(char::is_control)))
+        });
+    if !valid_target {
+        return Err(AppError::message("invalid or missing UI action target"));
+    }
+    if req.section.as_ref().is_some_and(|index| {
+        req.action != "click" || index.parse::<usize>().ok().is_none_or(|index| index == 0)
+    }) {
+        return Err(AppError::message(
+            "control occurrence must be a positive integer",
+        ));
+    }
+    if req
+        .direction
+        .as_deref()
+        .is_some_and(|button| req.action != "click" || button != "right")
+    {
+        return Err(AppError::message("invalid UI mouse button"));
+    }
+    Ok(id)
+}
+
+pub fn write_local_ui_request(req: &UiRequestPayload) -> Result<PathBuf, AppError> {
+    let id = local_ui_id(req)?;
+    let dir = local_ui_dir();
+    std::fs::create_dir_all(&dir)?;
+    let path = dir.join(format!("{id}.request"));
+    crate::fs::atomic_write(&path, &serde_json::to_vec(req).map_err(AppError::from)?)?;
+    Ok(path)
+}
+
+pub fn take_local_ui_requests() -> Vec<UiRequestPayload> {
+    let Ok(entries) = std::fs::read_dir(local_ui_dir()) else {
+        return Vec::new();
+    };
+    let mut requests = Vec::new();
+    for entry in entries.flatten().take(256) {
+        let path = entry.path();
+        let Ok(kind) = entry.file_type() else {
+            continue;
+        };
+        if !kind.is_file() {
+            continue;
+        }
+        let extension = path.extension().and_then(|ext| ext.to_str());
+        if entry
+            .metadata()
+            .ok()
+            .and_then(|meta| meta.modified().ok())
+            .and_then(|modified| modified.elapsed().ok())
+            .is_some_and(|age| age.as_secs() > CLI_OPEN_REQUEST_MAX_AGE_SECS)
+        {
+            if matches!(extension, Some("request" | "response")) {
+                let _ = std::fs::remove_file(&path);
+            }
+            continue;
+        }
+        if extension != Some("request") {
+            continue;
+        }
+        let raw = std::fs::read_to_string(&path);
+        if std::fs::remove_file(&path).is_err() {
+            continue;
+        }
+        let Ok(raw) = raw else { continue };
+        let Ok(req) = serde_json::from_str::<UiRequestPayload>(&raw) else {
+            continue;
+        };
+        if LOCAL_UI_ACTIONS.contains(&req.action.as_str())
+            && local_ui_id(&req)
+                .is_ok_and(|id| path == entry.path().with_file_name(format!("{id}.request")))
+        {
+            requests.push(req);
+        }
+    }
+    requests
+}
+
+pub fn write_local_ui_response(id: &str, response: &str) -> Result<(), AppError> {
+    let id =
+        uuid::Uuid::parse_str(id).map_err(|_| AppError::message("invalid local UI request id"))?;
+    if response.len() > 1024 * 1024 {
+        return Err(AppError::message("UI response exceeds size limit"));
+    }
+    crate::fs::atomic_write(
+        &local_ui_dir().join(format!("{id}.response")),
+        response.as_bytes(),
+    )?;
+    Ok(())
 }
 
 /// Absolute path of the CLI UI-action request file.

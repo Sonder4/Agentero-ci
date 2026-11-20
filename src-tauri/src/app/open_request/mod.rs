@@ -16,9 +16,38 @@ use crate::core::error::AppError;
 #[cfg(feature = "desktop")]
 use std::path::Path;
 #[cfg(feature = "desktop")]
+use std::{
+    sync::Mutex,
+    time::{Duration, Instant},
+};
+#[cfg(feature = "desktop")]
 use tauri::{AppHandle, Emitter, Manager, Runtime};
 #[cfg(feature = "desktop")]
 use tauri_plugin_fs::FsExt;
+
+/// Wait for the renderer to mount its listener before handing it any actions.
+#[cfg(feature = "desktop")]
+#[derive(Default)]
+pub struct PendingDesktopActions(Mutex<Vec<(Instant, UiRequestPayload)>>);
+
+#[cfg(feature = "desktop")]
+impl PendingDesktopActions {
+    fn extend(&self, requests: Vec<UiRequestPayload>) {
+        let mut pending = self.0.lock().unwrap_or_else(|error| error.into_inner());
+        pending.retain(|(queued, _)| queued.elapsed() < Duration::from_secs(8));
+        let now = Instant::now();
+        pending.extend(requests.into_iter().map(|request| (now, request)));
+    }
+
+    fn take(&self, label: &str) -> Vec<UiRequestPayload> {
+        let mut pending = self.0.lock().unwrap_or_else(|error| error.into_inner());
+        pending.retain(|(queued, _)| queued.elapsed() < Duration::from_secs(8));
+        pending
+            .extract_if(.., |(_, request)| request.window.as_deref() == Some(label))
+            .map(|(_, request)| request)
+            .collect()
+    }
+}
 
 /// Validate local directory, allow fs scope, store pending, emit + focus window.
 #[cfg(feature = "desktop")]
@@ -199,11 +228,11 @@ pub fn handle_argv_urls<R: Runtime>(app: &AppHandle<R>, argv: &[String]) {
 
 #[cfg(feature = "desktop")]
 fn focus_main_window<R: Runtime>(app: &AppHandle<R>) {
-    if let Some(win) = app.get_webview_window("main") {
-        let _ = win.show();
+    if let Some(win) = app.get_window("main") {
         // unminimize is desktop-only in Tauri (no window manager chrome on mobile).
         #[cfg(not(any(target_os = "android", target_os = "ios")))]
         let _ = win.unminimize();
+        let _ = win.show();
         let _ = win.set_focus();
     }
     // macOS often ignores set_focus from non-frontmost processes (CLI wake-up).
@@ -238,7 +267,35 @@ pub fn spawn_cli_open_request_watcher<R: Runtime>(app: AppHandle<R>) {
         let mut last_handled: Option<String> = None;
         let mut last_ui: Option<String> = None;
         loop {
-            tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+            tokio::time::sleep(Duration::from_millis(400)).await;
+            let mut local_actions = Vec::new();
+            for req in take_local_ui_requests() {
+                let label = req.window.as_deref().unwrap_or("main");
+                // The main window also hosts the ChatGPT child WebView.
+                if app.get_webview(label).is_some() {
+                    local_actions.push(req);
+                } else if let Some(id) = req.reference.as_deref() {
+                    let response = serde_json::json!({
+                        "error": format!("Agentero window {label} is not open")
+                    });
+                    let _ = write_local_ui_response(id, &response.to_string());
+                }
+            }
+            if !local_actions.is_empty() {
+                let wakeups = local_actions
+                    .iter()
+                    .map(|request| UiRequestPayload {
+                        path: None,
+                        section: None,
+                        direction: None,
+                        ..request.clone()
+                    })
+                    .collect::<Vec<_>>();
+                app.state::<PendingDesktopActions>().extend(local_actions);
+                for request in wakeups {
+                    let _ = app.emit(EVENT_UI_REQUEST, &request);
+                }
+            }
             if let Some(path) = take_cli_open_request_file() {
                 let key = path.to_string_lossy().into_owned();
                 if last_handled.as_deref() != Some(key.as_str()) {

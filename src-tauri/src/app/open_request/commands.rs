@@ -1,6 +1,6 @@
 use crate::core::error::ApiResult;
 
-use super::{PendingUiRequest, PendingVaultOpen, UiRequestPayload};
+use super::{PendingDesktopActions, PendingUiRequest, PendingVaultOpen, UiRequestPayload};
 
 /// Take the pending open path (startup race: frontend ready after Host queued).
 #[tauri::command]
@@ -18,4 +18,19 @@ pub fn ui_request_take_pending(
     state: tauri::State<'_, PendingUiRequest>,
 ) -> ApiResult<Option<UiRequestPayload>> {
     ApiResult::ok(state.take())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn ui_action_complete(id: String, response: String) -> Result<(), String> {
+    super::write_local_ui_response(&id, &response).map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn ui_action_take_pending(
+    caller: tauri::Webview,
+    state: tauri::State<'_, PendingDesktopActions>,
+) -> Vec<UiRequestPayload> {
+    state.take(caller.label())
 }

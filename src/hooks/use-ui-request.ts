@@ -14,6 +14,7 @@ import { errorText } from "@/lib/core/error";
 import { notifyError } from "@/lib/core/notify";
 import { isTauri } from "@/lib/core/tauri";
 import { listenEventSafe } from "@/lib/core/tauri-events";
+import { isDesktopUiAction } from "@/lib/shell/commands/desktop-ui-actions";
 import { openLocalVaultPath } from "@/lib/vault/actions";
 import { joinVaultPath } from "@/lib/vault/path";
 import { vaultStore } from "@/lib/vault/store";
@@ -141,7 +142,8 @@ export function useUiRequest(): void {
 		let generation = 0;
 
 		const handle = async (payload: UiRequestPayload | null | undefined) => {
-			if (!payload?.action || cancelled) return;
+			if (!payload?.action || isDesktopUiAction(payload.action) || cancelled)
+				return;
 			const key = JSON.stringify(payload);
 			if (inflight === key) return;
 			const gen = ++generation;

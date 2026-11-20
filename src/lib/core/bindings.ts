@@ -891,6 +891,8 @@ export const commands = {
 	vaultOpenTakePending: () => __TAURI_INVOKE<ApiResult<string | null>>("vault_open_take_pending"),
 	/**  Take the pending UI action request (startup race for `ui:request`). */
 	uiRequestTakePending: () => __TAURI_INVOKE<ApiResult<UiRequestPayload_Serialize | null>>("ui_request_take_pending"),
+	uiActionComplete: (id: string, response: string) => typedError<null, string>(__TAURI_INVOKE("ui_action_complete", { id, response })),
+	uiActionTakePending: () => __TAURI_INVOKE<UiRequestPayload_Serialize[]>("ui_action_take_pending"),
 	appUpdateCheck: (proxy: string | null, retryOnTimeout: boolean) => typedError<{
 	rid: number,
 	currentVersion: string,

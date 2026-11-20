@@ -257,6 +257,11 @@ pub fn run() {
         .manage(webview_proxy_config)
         .manage(crate::features::web::html_preview::HtmlPreviewGrants::default());
 
+    #[cfg(feature = "desktop")]
+    {
+        builder = builder.manage(crate::app::open_request::PendingDesktopActions::default());
+    }
+
     #[cfg(not(target_os = "ios"))]
     {
         // Remote vault sessions are consumed by features (agent / import /

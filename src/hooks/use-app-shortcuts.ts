@@ -1,7 +1,11 @@
 import { useEffect, useRef } from "react";
 import { useNativeSelectAllGuard } from "@/hooks/use-native-select-all-guard";
+import { registerDesktopShortcuts } from "@/lib/shell/commands/desktop-ui-actions";
 import {
+	formatShortcut,
+	getShortcut,
 	resolveShortcutId,
+	SHORTCUTS,
 	type ShortcutId,
 	shortcutBelongsToTextField,
 } from "@/lib/shell/shortcuts";
@@ -68,14 +72,42 @@ export function useAppShortcuts(
 	}, []);
 
 	useEffect(() => {
+		const canRun = (
+			id: ShortcutId,
+			target: EventTarget | null,
+			key: string,
+		) => {
+			if (document.querySelector("[data-shortcut-recording]")) return false;
+			if (target instanceof Element && target.closest("[data-shortcut-search]"))
+				return false;
+			if (shortcutBelongsToTextField(id, { key, target })) return false;
+			return !TREE_SURFACE_SHORTCUTS.has(id) || treeSurfaceActiveRef.current;
+		};
+		const context = (id: ShortcutId) => {
+			const binding = getShortcut(id);
+			const overlayOpen = modalOverlayOpenRef.current;
+			return {
+				key: binding ? formatShortcut(binding) : "",
+				enabled: Boolean(
+					binding &&
+						(!binding.whenSettingsOpen || overlayOpen) &&
+						(!binding.whenSettingsClosed || !overlayOpen) &&
+						canRun(id, document.activeElement, binding.key),
+				),
+			};
+		};
+		const unregister = registerDesktopShortcuts({
+			list: () => SHORTCUTS.map(({ id }) => ({ id, ...context(id) })),
+			run: (id) => {
+				const def = SHORTCUTS.find((shortcut) => shortcut.id === id);
+				if (!def || !context(def.id).enabled)
+					throw new Error(
+						`Shortcut is unavailable in the current context: ${id}`,
+					);
+				handlersRef.current[def.id]();
+			},
+		});
 		const onKeyDown = (event: KeyboardEvent) => {
-			if (document.querySelector("[data-shortcut-recording]")) return;
-			if (
-				event.target instanceof Element &&
-				event.target.closest("[data-shortcut-search]")
-			) {
-				return;
-			}
 			const id = resolveShortcutId(event, {
 				settingsOpen: modalOverlayOpenRef.current,
 			});
@@ -84,15 +116,7 @@ export function useAppShortcuts(
 			// Text fields keep their editor-native combos — ⌘⌫ delete-to-line,
 			// ⌘← / ⇧⌘← line jumps, ⌘X/⌘V native cut/paste, ⌥A composed chars,
 			// ⌘B bold. The shared helper owns that id/target decision.
-			if (shortcutBelongsToTextField(id, event)) return;
-
-			// File-tree shortcuts only apply on the tree's own surface. Elsewhere
-			// the event must reach the platform so the focused viewer still gets
-			// native cut/paste — paste consumers only react to a real `paste`
-			// event, and preventDefault on the keydown suppresses it.
-			if (TREE_SURFACE_SHORTCUTS.has(id) && !treeSurfaceActiveRef.current) {
-				return;
-			}
+			if (!canRun(id, event.target, event.key)) return;
 
 			event.preventDefault();
 			if (id === "toggleMarkdownSource") {
@@ -102,6 +126,9 @@ export function useAppShortcuts(
 			handlersRef.current[id]();
 		};
 		window.addEventListener("keydown", onKeyDown, true);
-		return () => window.removeEventListener("keydown", onKeyDown, true);
+		return () => {
+			unregister();
+			window.removeEventListener("keydown", onKeyDown, true);
+		};
 	}, []);
 }

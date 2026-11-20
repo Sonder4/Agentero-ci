@@ -22,6 +22,7 @@ import {
 } from "@/lib/settings";
 import { initFrontendPreferences } from "@/lib/settings/frontend-preferences";
 import { initSettingsStore } from "@/lib/settings/react-store";
+import { DesktopUiActionListener } from "@/lib/shell/commands/desktop-ui-actions";
 import { applyNativeWindowTheme } from "@/lib/shell/native-window-theme";
 import { initShellLayoutFromPrefs } from "@/lib/shell/ui-store";
 import { applyUiTheme } from "@/lib/ui/theme";
@@ -135,6 +136,7 @@ async function boot() {
 						<TooltipProvider delayDuration={300}>
 							<HintModeProvider>
 								<SettingsNativeRoot />
+								<DesktopUiActionListener />
 							</HintModeProvider>
 							{/* Global error / notice stack (top-right); use notifyError from @/lib/notify */}
 							<Toaster />
@@ -167,6 +169,7 @@ async function boot() {
 						<TooltipProvider delayDuration={300}>
 							<HintModeProvider>
 								<FeatureWindowRoot />
+								<DesktopUiActionListener />
 							</HintModeProvider>
 							<SelectionChatPopover />
 							<Toaster />
@@ -207,6 +210,7 @@ async function boot() {
 								<TooltipProvider delayDuration={300}>
 									<HintModeProvider>
 										<DocWindowRoot />
+										<DesktopUiActionListener />
 									</HintModeProvider>
 									<SelectionChatPopover />
 									<Toaster />
@@ -249,6 +253,7 @@ async function boot() {
 						<ThemeProvider attribute="class" defaultTheme="system" enableSystem>
 							<TooltipProvider delayDuration={300}>
 								<App />
+								<DesktopUiActionListener />
 								<SelectionChatPopover />
 								{/* Global error / notice stack (top-right); use notifyError from @/lib/notify */}
 								<Toaster />

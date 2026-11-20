@@ -28,7 +28,7 @@ Headless Vault / Catalog / Wiki 接口；**不含** BYOA / paper-reader。
 | `doctor` | Vault 结构与 Catalog 诊断；含 wikilink 检查与 aliases / 视觉批注 / catalog 去重修复 |
 | `layout` | 侧栏同构版面索引：`list` / `get` / `analyze`（figure / table / algorithm / formula / section / paragraph）；`analyze` 用远程 Provider 生成 sidecar |
 | `mark` | 阅读标注：`list` / `get` / `add`（`--quote` 文字锚点或 `--region` 区域锚点）/ `update` / `delete` |
-| `ui` | 桌面工作区/窗口操作：`open`（打开或聚焦文档/文件夹/论文）/ `close`（关闭面板）/ `window`（聚焦原生子窗口）/ `split`（分屏）；均走 `agentero://ui` 深链 + 请求文件 |
+| `ui` | 桌面工作区操作 `open` / `close` / `window` / `split`，以及运行中窗口的 `actions` / `shortcut` / `command` / `click` / `key` |
 | `settings` | 读取和修改应用、Agent、插件、Vault Doctor 与 CLI 配置 |
 | `translate` | 免费机器翻译纯文本（无需 API Key，不读桌面 settings） |
 | `table` | 科研表格行操作：`query` / `upsert` / `update-cells`（与桌面网格共用 `*.table.json`） |
@@ -561,7 +561,7 @@ CLI 通过 `agentero://open?path=…` 深链唤起已安装的桌面 App；无�
 
 #### 工作区操作（`ui`）
 
-`agentero ui` 是 Herdr 式的「窗口管理」面：操作正在运行的桌面工作区，而不是文件系统。所有动作都走同一条投递链——写 `cli-ui-request.json`（Host 每 ~400ms 轮询）→ single-instance socket → `agentero://ui?action=…` 深链 → 必要时拉起 GUI；Host 校验后发 `ui:request` 事件，前端在需要时先切换 Vault，再调用与 UI 相同的打开/关闭原语。
+`ui open`、`close`、`window` 和 `split` 通过请求文件和 `agentero://ui?action=…` 深链投递，必要时拉起 GUI。前端在需要时先切换 Vault，再调用工作区的打开、关闭或分屏操作。
 
 ```bash
 # 打开或聚焦一个 vault-relative 文档 / 文件夹 / 论文（已开则聚焦同一 tab）
@@ -593,6 +593,33 @@ agentero paper open papers/nlp/attention --json
 `paper open` 先按优先 path、其次 id 解析论文（与 `paper get` 同一 ref 规则，多 shelf 同 id 时返回 `paper_ambiguous`），再投递 `open-paper` 动作。`AGENTERO_OPEN_DRY_RUN=1` 只校验并打印 `action` / `path` / `window` / `url`，不触达桌面 App（仍会校验路径与窗口名）。
 
 > `ui open/close` 的 path 是 **vault-relative**（与 `openVaultRel` 一致），Vault 由 `--vault` / `AGENTERO_VAULT` / 目录上溯 / 默认 Vault 解析；`ui window` 不需要 Vault。
+
+#### 触发运行中窗口的控件
+
+```powershell
+agentero ui actions --json
+agentero ui shortcut toggleSidebar
+agentero ui command chatgpt.open
+agentero ui command chatgpt.askSelection
+agentero ui click pdf.viewport
+agentero ui key Ctrl+f
+agentero ui command settings.open
+agentero ui actions --window settings --json
+agentero ui click "<actions 返回的控件名称>" --window settings
+agentero ui click "<同名控件>" --occurrence 2
+agentero ui click "<阅读区或控件>" --right
+agentero ui click chatgpt.selection.ask
+agentero ui click chatgpt.quote.question
+agentero ui fill "请解释引用的这段话"
+agentero ui click chatgpt.quote.insert
+```
+
+- `actions` 列出当前窗口可用的命令、全局快捷键和可见控件。控件有操作 ID 时优先使用 ID。也可使用当前界面语言的完整名称，同名控件用从 1 开始的 `occurrence` 选择。菜单或模态对话框打开时，列表以当前交互范围为准。
+- `shortcut` 按稳定 ID 调用现有快捷键处理器，遵循快捷键开关、平台、焦点和弹层条件。`command` 使用命令面板的 ID 和可用条件。
+- `click` 使用应用内键盘导航已有的控件激活流程，等待目标控件出现最多 2 秒。加 `--right` 触发应用自己的右键菜单。`key` 把按键交给当前焦点的应用端事件处理器，支持 `Ctrl`、`Alt`、`Shift` 和 `Meta` 组合，也能在聚焦的可编辑区执行全选。
+- `fill` 替换当前聚焦的应用文本输入框或文本域，触发应用的输入逻辑，支持空值清空。密码和令牌设置使用对应的 `settings` 命令。
+- 默认目标为 `main`，可用 `--window` 显式指定 `settings` 或已打开的应用窗口 label。请求由当前用户的本地目录投递，等待对应窗口挂载后处理。浏览器深链无法投递这些操作。桌面确认动作分派后，界面继续处理对话框和后台任务。测试脚本可再次查询 `ui actions --json` 检查下一步控件。
+- 控件范围覆盖 Agentero 渲染的界面。操作系统标题栏、系统文件对话框、网页 iframe 与 ChatGPT 子 WebView 由各自的宿主接收输入。浏览器原生文本编辑、焦点切换等默认行为仍需要实际按键。
 
 ### 系统外壳集成（右键「用 Agentero 打开」）
 

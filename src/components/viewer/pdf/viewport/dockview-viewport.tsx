@@ -249,6 +249,7 @@ export function DockviewViewport({
 				{...restProps}
 				ref={viewportRef}
 				data-pdf-viewport
+				data-ui-action="pdf.viewport"
 				tabIndex={paginated ? 0 : -1}
 				style={{
 					width: "100%",
