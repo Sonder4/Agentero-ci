@@ -37,6 +37,14 @@ import i18n, { applyLocale } from "./i18n";
 import "./index.css";
 
 window.addEventListener("error", (e) => {
+	if (
+		e.message ===
+			"ResizeObserver loop completed with undelivered notifications." ||
+		e.message === "ResizeObserver loop limit exceeded"
+	) {
+		logger.warn(`[window.error] ${e.message}`);
+		return;
+	}
 	const location = e.filename ? ` at ${e.filename}:${e.lineno}:${e.colno}` : "";
 	logger.error(`[window.error] ${e.message}${location}`);
 });
