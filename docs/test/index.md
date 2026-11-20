@@ -147,6 +147,15 @@ CI 的 `agentero-tests` 任务运行 Host 与 `agentero-plugin-host` 测试，�
 
 `#[cfg(windows)]` 不会出现在 macOS job 里。`rust-windows`（`windows-latest`）跑同一组任务：quality（`cargo fmt --all --check` 与 `cargo clippy --workspace --all-targets -- -D warnings`）、`agentero-tests`、`cli-tests`。Windows 上 `tesseract-rs` 的 Debug `*d.lib` 和空 `eng.traineddata` 见 [CONTRIBUTING.md](https://github.com/poco-ai/agentero/blob/main/CONTRIBUTING.md)；测试任务因此使用 `--release`，让 CMake 产出并链接与 crate 匹配的库名。
 
+本地编译产物都在仓库根的 `target/`。根 `Cargo.toml` 的 dev profile 不给依赖生成调试信息，项目 crate 只保留行号（崩溃回溯仍有文件和行号）。全部依赖带完整调试信息时，Windows 上的 `target/debug` 曾涨到约 50GB。
+
+想让后续编译都是增量编译：
+
+- 不要随手 `cargo clean` 或删除 `target/`，删掉后下一次是全量编译。
+- 尽量重复使用同一组命令。`pnpm tauri dev`、`cargo test -p <包>` 和提交钩子里的 `cargo clippy --workspace --all-targets` 选中的包和 feature 不同，依赖会按不同 feature 组合各编一份。每种组合第一次运行时编译，之后复用。
+- 本地不要用 `--release` 跑测试。release 是另一整套产物，只有 CI 的 Windows 测试任务需要它。
+- 暂存区含 `src-tauri/**/*.rs` 时，pre-commit 会运行 `cargo fmt --all` 与 workspace clippy。提交前先关闭 `pnpm tauri dev` 启动的应用：运行中的 sidecar 会被锁住（os error 32），钩子会因此失败。
+
 解析器和 resolver 的临时边界用例可以放在对应 Rust 模块的 `#[cfg(test)]` 中，本地验证后按上述保留原则移除本次新增内容；用户明确要求保留的回归测试除外。依赖 Vault 的 graph/index 测试应创建临时目录和文件，不依赖已提交的缓存文件。
 
 子进程测试应在超时范围内等待就绪信号，避免用固定短 sleep 假定启动完成。ACP 终端测试等待 `ready` 输出，同时单独限制每次 output 调用耗时，继续验证运行中的输出读取和取消能力。

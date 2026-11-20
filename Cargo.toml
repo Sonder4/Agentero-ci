@@ -25,6 +25,15 @@ tempfile = "3"
 
 # Profiles only take effect from the workspace root. Shipped binaries were
 # unstripped and non-LTO (#320): GUI 76MB, headless CLI 31MB.
+# Full DWARF/PDB for every dependency made target/debug grow to ~50GB on
+# Windows. Keep file/line backtraces for workspace crates and drop debug info
+# for dependencies; incremental compilation is unaffected.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.dev.package."*"]
+debug = false
+
 [profile.release]
 strip = true
 lto = true
