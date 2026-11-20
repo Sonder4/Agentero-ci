@@ -40,23 +40,38 @@ export function ChatGptSelectionContextMenu() {
 					className="w-auto"
 					onCloseAutoFocus={(event) => event.preventDefault()}
 				>
-					<DropdownMenuItem
-						data-ui-action="chatgpt.selection.ask"
-						onSelect={() => void openChatGptQuote(request.text, request.source)}
-					>
-						<ChatGPTIcon />
-						{t("selection.openInChatGpt")}
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						onSelect={() => {
-							void copyTextToClipboard(request.text).then((copied) => {
-								if (!copied) notifyError(t("selection.copyFailed"));
-							});
-						}}
-					>
-						<Copy />
-						{t("selection.copy")}
-					</DropdownMenuItem>
+					{request.text && (
+						<DropdownMenuItem
+							data-ui-action="chatgpt.selection.ask"
+							onSelect={() =>
+								void openChatGptQuote(request.text, request.source)
+							}
+						>
+							<ChatGPTIcon />
+							{t("selection.openInChatGpt")}
+						</DropdownMenuItem>
+					)}
+					{request.askPage && (
+						<DropdownMenuItem
+							data-ui-action="chatgpt.page.contextAsk"
+							onSelect={request.askPage}
+						>
+							<ChatGPTIcon />
+							{t("selection.askChatGptAboutPage")}
+						</DropdownMenuItem>
+					)}
+					{request.text && (
+						<DropdownMenuItem
+							onSelect={() => {
+								void copyTextToClipboard(request.text).then((copied) => {
+									if (!copied) notifyError(t("selection.copyFailed"));
+								});
+							}}
+						>
+							<Copy />
+							{t("selection.copy")}
+						</DropdownMenuItem>
+					)}
 				</DropdownMenuContent>
 			)}
 		</DropdownMenu>

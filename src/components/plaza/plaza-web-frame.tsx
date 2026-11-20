@@ -1,4 +1,3 @@
-import { useWebViewSelection } from "@/components/viewer/web-view/use-web-view-selection";
 /**
  * Embedded web page for a Plaza source, with in-frame browsing.
  *
@@ -31,6 +30,8 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AskChatGptPageButton } from "@/components/viewer/web-view/ask-chatgpt-page-button";
+import { useWebViewSelection } from "@/components/viewer/web-view/use-web-view-selection";
 import { useVaultStore } from "@/hooks/use-app-stores";
 import { useIframeDragShield } from "@/hooks/use-iframe-drag-shield";
 import { openExternalUrl } from "@/lib/core/open-external";
@@ -438,6 +439,7 @@ export function PlazaWebFrame({
 				>
 					{currentPath}
 				</span>
+				{embedOrigin && <AskChatGptPageButton onAsk={selection.askPage} />}
 				<Tooltip>
 					<TooltipTrigger asChild>
 						<Button

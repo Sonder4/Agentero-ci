@@ -36,6 +36,14 @@ export type WebBridgeMessage =
 			cursorX?: number;
 			contextMenu?: { x: number; y: number };
 	  }
+	| {
+			type: "pageContext";
+			requestId: string;
+			title: string;
+			url: string;
+			text: string;
+			truncated: boolean;
+	  }
 	| { type: "scroll" }
 	| { type: "ready" }
 	| { type: "escape" }
@@ -89,6 +97,20 @@ export function parseWebBridgeMessage(data: unknown): WebBridgeMessage | null {
 				...(contextMenu ? { contextMenu } : {}),
 			};
 		}
+		case "pageContext": {
+			const { requestId, title, url, text, truncated } = data;
+			if (
+				typeof requestId !== "string" ||
+				typeof title !== "string" ||
+				title.length > 300 ||
+				typeof url !== "string" ||
+				typeof text !== "string" ||
+				text.length > 6000 ||
+				typeof truncated !== "boolean"
+			)
+				return null;
+			return { type: "pageContext", requestId, title, url, text, truncated };
+		}
 		case "ready":
 			return { type: "ready" };
 		case "scroll":
@@ -120,6 +142,34 @@ export function parseWebBridgeMessage(data: unknown): WebBridgeMessage | null {
 		default:
 			return null;
 	}
+}
+
+/** Reconstruct the page URL after in-frame navigation through a proxy. */
+export function webBridgePageUrl(
+	srcUrl: string,
+	frameUrl: string,
+	origins: string[],
+): string {
+	try {
+		const remote = new URL(srcUrl);
+		const frame = new URL(frameUrl);
+		const frameOrigin =
+			frame.origin === "null"
+				? `${frame.protocol}//${frame.host}`
+				: frame.origin;
+		if (origins.includes(frameOrigin)) {
+			const prefix = `/${remote.host}`;
+			const path = frame.pathname.startsWith(`${prefix}/`)
+				? frame.pathname.slice(prefix.length)
+				: frame.pathname;
+			return new URL(remote.origin + path + frame.search + frame.hash).href;
+		}
+		if (frame.protocol === "http:" || frame.protocol === "https:")
+			return frame.href;
+	} catch {
+		/* srcdoc and invalid frame URLs use the supplied public URL. */
+	}
+	return srcUrl;
 }
 
 /**

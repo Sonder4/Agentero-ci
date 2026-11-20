@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
+import { AskChatGptPageButton } from "@/components/viewer/web-view/ask-chatgpt-page-button";
 import { useWebViewSelection } from "@/components/viewer/web-view/use-web-view-selection";
 import { useIframeDragShield } from "@/hooks/use-iframe-drag-shield";
 import { commands } from "@/lib/core/bindings";
@@ -115,7 +116,7 @@ export function HtmlViewer({
 	}, [remote, trusted]);
 
 	const selection = useWebViewSelection({
-		srcUrl: remote ?? "",
+		srcUrl: arxivPageUrl ?? remote ?? "",
 		iframeRef,
 		title,
 		origin: trusted ? "null" : undefined,
@@ -125,73 +126,55 @@ export function HtmlViewer({
 		return <EmptyState className={className}>{t("html.empty")}</EmptyState>;
 	}
 
-	if (trusted) {
-		const cachedHtml = arxivPageUrl ? peekArxivHtml(arxivPageUrl) : null;
-		const current = arxiv?.url === arxivPageUrl ? arxiv : null;
-		const arxivHtml = cachedHtml ?? current?.html ?? null;
-		const phase: ArxivHtmlPhase = !arxivTarget
-			? "bad_url"
-			: arxivHtml
-				? "ready"
-				: (current?.phase ?? "loading");
-		return (
-			<div
-				className={cn(
-					"relative h-full min-h-0 w-full min-w-0 overflow-hidden bg-background",
-					className,
-				)}
-				data-arxiv-html={phase}
-				aria-busy={phase === "loading" || undefined}
-			>
-				{phase === "ready" && arxivHtml ? (
-					<iframe
-						title={t("html.sandboxTitle")}
-						srcDoc={arxivHtml}
-						sandbox={ARXIV_HTML_SANDBOX}
-						referrerPolicy="no-referrer"
-						ref={iframeRef}
-						onLoad={selection.onFrameLoad}
-						className={cn(
-							"absolute inset-0 block h-full w-full border-0 bg-background",
-							dragShield && "pointer-events-none",
-						)}
-						style={{ colorScheme: "light dark" }}
-					/>
-				) : (
-					<ArxivHtmlStatus
-						phase={phase}
-						absUrl={arxivTarget?.absUrl ?? null}
-						onShowPdf={onShowPdf}
-					/>
-				)}
-			</div>
-		);
-	}
-
-	const iframeUrl = gate === "ready" ? webViewProxyUrl(remote) : null;
+	const cachedHtml = arxivPageUrl ? peekArxivHtml(arxivPageUrl) : null;
+	const current = arxiv?.url === arxivPageUrl ? arxiv : null;
+	const arxivHtml = cachedHtml ?? current?.html ?? undefined;
+	const phase: ArxivHtmlPhase = !arxivTarget
+		? "bad_url"
+		: arxivHtml
+			? "ready"
+			: (current?.phase ?? "loading");
+	const iframeUrl =
+		!trusted && gate === "ready" ? webViewProxyUrl(remote) : undefined;
 	const sandbox =
 		"allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox";
 
 	return (
 		<div
 			className={cn(
-				"relative h-full min-h-0 w-full min-w-0 overflow-hidden bg-background",
+				"flex h-full min-h-0 w-full min-w-0 flex-col overflow-hidden bg-background",
 				className,
 			)}
+			data-arxiv-html={trusted ? phase : undefined}
+			aria-busy={(trusted && phase === "loading") || undefined}
 		>
-			{iframeUrl ? (
-				<iframe
-					title={t("html.sandboxTitle")}
-					src={iframeUrl}
-					sandbox={sandbox}
-					referrerPolicy="no-referrer-when-downgrade"
-					ref={iframeRef}
-					onLoad={selection.onFrameLoad}
-					className={cn(
-						"absolute inset-0 block h-full w-full border-0 bg-background",
-						dragShield && "pointer-events-none",
-					)}
-					style={{ colorScheme: "light dark" }}
+			{iframeUrl || arxivHtml ? (
+				<>
+					<div className="flex min-h-8 shrink-0 items-center justify-end border-b px-1.5">
+						<AskChatGptPageButton onAsk={selection.askPage} />
+					</div>
+					<iframe
+						title={t("html.sandboxTitle")}
+						src={iframeUrl}
+						srcDoc={arxivHtml}
+						sandbox={trusted ? ARXIV_HTML_SANDBOX : sandbox}
+						referrerPolicy={
+							trusted ? "no-referrer" : "no-referrer-when-downgrade"
+						}
+						ref={iframeRef}
+						onLoad={selection.onFrameLoad}
+						className={cn(
+							"block min-h-0 w-full flex-1 border-0 bg-background",
+							dragShield && "pointer-events-none",
+						)}
+						style={{ colorScheme: "light dark" }}
+					/>
+				</>
+			) : trusted ? (
+				<ArxivHtmlStatus
+					phase={phase}
+					absUrl={arxivTarget?.absUrl ?? null}
+					onShowPdf={onShowPdf}
 				/>
 			) : (
 				<EmptyState>{gate === "denied" ? t("html.denied") : null}</EmptyState>

@@ -1,4 +1,5 @@
 import { type RefObject, useCallback, useEffect, useRef } from "react";
+import i18n from "@/i18n";
 import {
 	closeSelectionSource,
 	dismissSelectionChat,
@@ -11,14 +12,20 @@ import {
 	runSelectionQuickChat,
 } from "@/lib/agent/selection-quick-chat";
 import { openChatGptSelectionMenu } from "@/lib/chatgpt/selection-menu";
+import { openChatGptQuote } from "@/lib/chatgpt/window";
 import { copyTextToClipboard } from "@/lib/core/clipboard";
+import { notifyError } from "@/lib/core/notify";
 import { openExternalUrl } from "@/lib/core/open-external";
 import { getPlatformOS } from "@/lib/core/tauri";
 import { settingsStore } from "@/lib/settings/react-store";
 import { getShortcut, resolveShortcutId } from "@/lib/shell/shortcuts";
 import { toggleChat } from "@/lib/shell/ui-window-actions";
 import { webViewProxyOrigins } from "@/lib/web-view/proxy-url";
-import { bridgeSelectionScreen, parseWebBridgeMessage } from "./bridge-message";
+import {
+	bridgeSelectionScreen,
+	parseWebBridgeMessage,
+	webBridgePageUrl,
+} from "./bridge-message";
 
 /** Frame adapter only: shared window host owns menus, requests and result cards. */
 export function useWebViewSelection({
@@ -36,6 +43,27 @@ export function useWebViewSelection({
 	scale?: number;
 }) {
 	const selectionSourceRef = useRef(srcUrl);
+	const pendingPage = useRef<{ id: string; timer: number } | null>(null);
+	const clearPendingPage = useCallback(() => {
+		window.clearTimeout(pendingPage.current?.timer);
+		pendingPage.current = null;
+	}, []);
+	const askPage = useCallback(() => {
+		const frameWindow = iframeRef.current?.contentWindow;
+		if (!frameWindow || pendingPage.current) return;
+		const id = crypto.randomUUID();
+		pendingPage.current = {
+			id,
+			timer: window.setTimeout(() => {
+				clearPendingPage();
+				notifyError(i18n.t("viewer:selection.pageContextUnavailable"));
+			}, 2000),
+		};
+		frameWindow.postMessage(
+			{ source: "agentero-web-host", type: "readPage", requestId: id },
+			origin && origin !== "null" ? origin : "*",
+		);
+	}, [clearPendingPage, iframeRef, origin]);
 	const syncShortcuts = useCallback(() => {
 		const ownsSelection =
 			selectionChatStore.getState().draft?.selection.sourcePath ===
@@ -94,36 +122,31 @@ export function useWebViewSelection({
 				syncShortcuts();
 				return;
 			}
-			if (msg.type === "selection") {
-				const iframe = iframeRef.current;
-				if (!iframe || !msg.text || !msg.rect) {
-					closeMenu();
+			if (msg.type === "pageContext") {
+				if (pendingPage.current?.id !== msg.requestId) return;
+				clearPendingPage();
+				const text = msg.text.trim();
+				if (!text) {
+					notifyError(i18n.t("viewer:selection.pageContextUnavailable"));
 					return;
 				}
+				void openChatGptQuote(
+					msg.truncated
+						? `${text}\n\n[${i18n.t("viewer:selection.pageContextTruncated")}]`
+						: text,
+					{
+						sourceUrl: webBridgePageUrl(srcUrl, msg.url, origins),
+						sourceTitle: msg.title || title,
+					},
+				);
+				return;
+			}
+			if (msg.type === "selection") {
+				const iframe = iframeRef.current;
+				if (!iframe) return;
 				const bounds = iframe.getBoundingClientRect();
 				if (!bounds.width || !bounds.height) return;
-				// Reconstruct the current public page after in-frame navigation.
-				let url = srcUrl;
-				try {
-					const remote = new URL(srcUrl);
-					const frame = new URL(msg.url);
-					const frameOrigin =
-						frame.origin === "null"
-							? `${frame.protocol}//${frame.host}`
-							: frame.origin;
-					if (frame.protocol === "http:" || frame.protocol === "https:") {
-						if (!origins.includes(frameOrigin)) url = frame.href;
-					}
-					if (origins.includes(frameOrigin)) {
-						const prefix = `/${remote.host}`;
-						const path = frame.pathname.startsWith(`${prefix}/`)
-							? frame.pathname.slice(prefix.length)
-							: frame.pathname;
-						url = new URL(path + frame.search + frame.hash, remote.origin).href;
-					}
-				} catch {
-					/* sandboxed srcdoc uses the supplied public URL */
-				}
+				const url = webBridgePageUrl(srcUrl, msg.url, origins);
 				if (msg.contextMenu) {
 					const { x, y } = msg.contextMenu;
 					if (
@@ -136,9 +159,14 @@ export function useWebViewSelection({
 					openChatGptSelectionMenu({
 						x: bounds.left + x * scale,
 						y: bounds.top + y * scale,
-						text: msg.text,
+						text: msg.rect ? msg.text : "",
 						source: { sourceUrl: url, sourceTitle: title },
+						askPage,
 					});
+					return;
+				}
+				if (!msg.text || !msg.rect) {
+					closeMenu();
 					return;
 				}
 				if (selectionSource !== url) closeSelectionSource(selectionSource);
@@ -204,8 +232,18 @@ export function useWebViewSelection({
 		window.addEventListener("message", onMessage);
 		return () => {
 			window.removeEventListener("message", onMessage);
+			clearPendingPage();
 			closeSelectionSource(selectionSource);
 		};
-	}, [srcUrl, iframeRef, title, origin, scale, syncShortcuts]);
-	return { onFrameLoad: syncShortcuts };
+	}, [
+		srcUrl,
+		iframeRef,
+		title,
+		origin,
+		scale,
+		syncShortcuts,
+		askPage,
+		clearPendingPage,
+	]);
+	return { onFrameLoad: syncShortcuts, askPage };
 }

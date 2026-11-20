@@ -142,7 +142,7 @@ export function chatGptQuoteDraft(
 		...quotes.map((quote) =>
 			quoteMarkdown([quote.source, quote.text].filter(Boolean).join("\n")),
 		),
-		question.trim() || "Help me understand the selected text.",
+		question.trim() || "Help me understand these excerpts.",
 	].join("\n\n");
 }
 
@@ -153,11 +153,12 @@ export async function openChatGptQuote(
 ): Promise<void> {
 	const selected = clipUtf8(text.trim(), MAX_PROMPT_BYTES);
 	if (!selected) return;
-	const location =
-		chatGptSourceUrl(source?.sourceUrl) ??
-		(source?.sourcePath
+	const webUrl = chatGptSourceUrl(source?.sourceUrl);
+	const location = webUrl
+		? [source?.sourceTitle, webUrl].filter(Boolean).join(" — ")
+		: source?.sourcePath
 			? selectionLocation({ ...source, sourcePath: source.sourcePath })
-			: source?.sourceTitle);
+			: source?.sourceTitle;
 	const quote = {
 		text: selected,
 		source: location ? clipUtf8(location, MAX_SOURCE_BYTES) : undefined,

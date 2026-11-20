@@ -13,6 +13,69 @@
 		};
 		// ---- selection → app toolbar -----------------------------------------
 		const MAX_SELECTION_CHARS = 4000;
+		const MAX_PAGE_CONTEXT_CHARS = 6000;
+		const OMIT_FROM_PAGE_CONTEXT =
+			"script, style, noscript, template, nav, aside, footer, form, input, textarea, select, button, [contenteditable], [inert], [aria-hidden=true], [hidden]";
+		const canReadElement = (element) => {
+			if (element.matches(OMIT_FROM_PAGE_CONTEXT)) return false;
+			const style = getComputedStyle(element);
+			return style.display !== "none" && style.visibility === "visible";
+		};
+		const readPage = (requestId) => {
+			const root = document.querySelector("main, [role=main]") ?? document.body;
+			let text = "";
+			let previousBlock = null;
+			if (
+				root &&
+				canReadElement(root) &&
+				!root.closest(OMIT_FROM_PAGE_CONTEXT)
+			) {
+				const walker = document.createTreeWalker(
+					root,
+					NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+					{
+						acceptNode(node) {
+							if (node.nodeType === Node.TEXT_NODE)
+								return NodeFilter.FILTER_ACCEPT;
+							return canReadElement(node)
+								? NodeFilter.FILTER_SKIP
+								: NodeFilter.FILTER_REJECT;
+						},
+					},
+				);
+				for (
+					let node = walker.nextNode();
+					node && text.length <= MAX_PAGE_CONTEXT_CHARS;
+					node = walker.nextNode()
+				) {
+					const part = node.textContent?.trim().replace(/\s+/g, " ");
+					if (!part) continue;
+					const block = node.parentElement?.closest(
+						"p, li, h1, h2, h3, h4, h5, h6, pre, td, th, blockquote",
+					);
+					const separator = !text
+						? ""
+						: block && block !== previousBlock
+							? "\n\n"
+							: " ";
+					text += (separator + part).slice(
+						0,
+						MAX_PAGE_CONTEXT_CHARS + 1 - text.length,
+					);
+					previousBlock = block;
+				}
+			}
+			post({
+				type: "pageContext",
+				requestId,
+				title: document.title.slice(0, 300),
+				url: location.href,
+				text: text
+					.slice(0, MAX_PAGE_CONTEXT_CHARS)
+					.replace(/[\uD800-\uDBFF]$/, ""),
+				truncated: text.length > MAX_PAGE_CONTEXT_CHARS,
+			});
+		};
 		const getSelectionGesture = (sel) => {
 			if (!sel || sel.anchorNode == null || sel.focusNode == null) return {};
 			try {
@@ -57,10 +120,12 @@
 			}
 			if (contextMenu) {
 				if (
-					!text ||
-					!rect ||
 					contextMenu.defaultPrevented ||
-					isEditable(contextMenu.target)
+					isEditable(contextMenu.target) ||
+					((!text || !rect) &&
+						contextMenu.target.closest?.(
+							"a[href], img, video, audio, canvas, button",
+						))
 				)
 					return;
 				contextMenu.preventDefault();
@@ -226,6 +291,11 @@
 			} else if (data.type === "clearSelection") {
 				const sel = window.getSelection();
 				if (sel) sel.removeAllRanges();
+			} else if (
+				data.type === "readPage" &&
+				typeof data.requestId === "string"
+			) {
+				readPage(data.requestId);
 			}
 		});
 		post({ type: "ready" });

@@ -6,6 +6,7 @@ type SelectionMenuRequest = {
 	y: number;
 	text: string;
 	source?: ChatGptSelectionSource;
+	askPage?: () => void;
 };
 
 export const chatGptSelectionMenu = createStore<{
@@ -13,5 +14,6 @@ export const chatGptSelectionMenu = createStore<{
 }>(() => ({ request: null }));
 
 export function openChatGptSelectionMenu(request: SelectionMenuRequest): void {
-	if (request.text.trim()) chatGptSelectionMenu.setState({ request });
+	if (request.text.trim() || request.askPage)
+		chatGptSelectionMenu.setState({ request });
 }
