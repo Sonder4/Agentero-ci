@@ -324,7 +324,9 @@ pub(crate) fn resolve_local_cli<R: Runtime>(app: &AppHandle<R>) -> Option<Resolv
 }
 
 fn read_cli_version(bin: &Path) -> Option<String> {
-    let output = Command::new(bin).arg("--version").output().ok()?;
+    let mut command = Command::new(bin);
+    crate::core::process::hide_console_window(&mut command);
+    let output = command.arg("--version").output().ok()?;
     if !output.status.success() {
         return None;
     }

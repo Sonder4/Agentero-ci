@@ -3,7 +3,7 @@
 //! Implements the `terminal/*` request family (create, output, release, wait_for_exit, kill)
 //! so ACP agents like Kimi Code can execute shell commands in the local environment.
 
-use crate::core::process::SanitizeAppImageEnv;
+use crate::core::process::{ProcessTree, SanitizeAppImageEnv};
 use crate::features::agent::registry::discovery::resolve_command;
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::v1::schema::{
@@ -18,7 +18,6 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use tokio::io::AsyncReadExt;
-use tokio::process::Child;
 use tokio::sync::{mpsc, oneshot, watch, Mutex};
 use tokio::time::{timeout, Duration};
 use uuid::Uuid;
@@ -123,10 +122,9 @@ impl AcpTerminalManager {
         let (command, args) = command_and_args(&request.command, &request.args);
 
         let mut cmd = tokio::process::Command::new(&command);
-        cmd.args(args)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .kill_on_drop(true);
+        cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
+        #[cfg(unix)]
+        cmd.process_group(0);
 
         if let Some(cwd) = request.cwd.as_ref().or(self.default_cwd.as_ref()) {
             cmd.current_dir(cwd);
@@ -140,16 +138,15 @@ impl AcpTerminalManager {
         // loader paths into them (#1002).
         cmd.sanitize_appimage_env();
 
-        let mut child = cmd
-            .spawn()
+        let mut child = ProcessTree::spawn(&mut cmd)
             .map_err(|e| format!("failed to spawn terminal command `{command}`: {e}"))?;
 
         let stdout = child
-            .stdout
+            .stdout()
             .take()
             .ok_or_else(|| "terminal command has no stdout".to_string())?;
         let stderr = child
-            .stderr
+            .stderr()
             .take()
             .ok_or_else(|| "terminal command has no stderr".to_string())?;
 
@@ -282,19 +279,33 @@ async fn drain_readers(handles: Vec<tokio::task::JoinHandle<()>>) {
     }
 }
 
+async fn kill_terminal_tree(child: &mut ProcessTree, _group: Option<u32>) -> std::io::Result<()> {
+    #[cfg(unix)]
+    if let Some(pid) = _group {
+        let _ = tokio::process::Command::new("/bin/kill")
+            .args(["-KILL", "--", &format!("-{pid}")])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await;
+    }
+    child.start_kill()
+}
+
 fn spawn_controller(
-    mut child: Child,
+    mut child: ProcessTree,
     exit_tx: watch::Sender<Option<TerminalExitStatus>>,
     mut control_rx: mpsc::Receiver<TerminalControl>,
     readers: Vec<tokio::task::JoinHandle<()>>,
 ) {
     tokio::spawn(async move {
+        let group = child.id();
         let (status, kill_done) = loop {
             tokio::select! {
                 status = child.wait() => break (terminal_exit_status(status), None),
                 control = control_rx.recv() => {
                     match control {
-                        Some(TerminalControl::Kill(done)) => match child.start_kill() {
+                        Some(TerminalControl::Kill(done)) => match kill_terminal_tree(&mut child, group).await {
                             Ok(()) => {
                                 break (terminal_exit_status(child.wait().await), Some(done));
                             }
@@ -306,13 +317,16 @@ fn spawn_controller(
                         },
                         None => {
                             // Always reap and publish a status, even if the kill fails.
-                            let _ = child.start_kill();
+                            let _ = kill_terminal_tree(&mut child, group).await;
                             break (terminal_exit_status(child.wait().await), None);
                         }
                     }
                 }
             }
         };
+        if kill_done.is_none() {
+            let _ = kill_terminal_tree(&mut child, group).await;
+        }
         drain_readers(readers).await;
         exit_tx.send_replace(Some(status));
         if let Some(done) = kill_done {

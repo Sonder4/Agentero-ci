@@ -369,6 +369,8 @@ cursor 不再推进（`next == prev`）时视为走完，避免死循环。
 
 ## ACP 终端（terminal/*）
 
+终端命令以 Windows Job Object 或 Unix 进程组持有。终止、释放或根进程退出时回收组内子进程。Windows 的启动与 CLI 版本探测隐藏控制台。
+
 实现在 `src-tauri/src/features/agent/acp/terminal.rs`。Host 在 `initialize` 声明 `terminal: true`（`acp/client.rs` 的 `client_initialize_request`），本地实现 `terminal/create`、`terminal/output`、`terminal/wait_for_exit`、`terminal/kill`、`terminal/release`。每条 ACP 连接由 `acp_terminals` 建一个 `AcpTerminalManager`，按 UUID `TerminalId` 管理。run / warm / 历史查询的 manager 带 Vault cwd，probe 不带。
 
 - **命令解析**（`command_and_args`）：
