@@ -4,6 +4,7 @@
 //! originating window via its label.
 
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -42,6 +43,16 @@ pub struct FileRename {
 struct WatchHandle {
     /// Dropping the watcher disconnects its event channel and wakes a blocked `recv`.
     watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
+    cancelled: Arc<AtomicBool>,
+}
+
+impl Drop for WatchHandle {
+    fn drop(&mut self) {
+        if let Ok(mut slot) = self.watcher.lock() {
+            self.cancelled.store(true, Ordering::Release);
+            *slot = None;
+        }
+    }
 }
 
 /// Per-window filesystem watchers. Mirrors the `Mutex<HashMap<..>>` pattern used
@@ -71,7 +82,13 @@ impl FsWatchController {
         window_label: String,
         vault_path: String,
     ) -> Result<(), String> {
-        self.stop(&window_label);
+        let mut guard = self
+            .inner
+            .lock()
+            .map_err(|_| "fs watch controller lock poisoned".to_string())?;
+        guard.remove(&window_label);
+        let cancelled = Arc::new(AtomicBool::new(false));
+        let cancelled_thread = cancelled.clone();
 
         let watch_root = vault_path.clone();
         let label = window_label.clone();
@@ -101,6 +118,9 @@ impl FsWatchController {
                     return;
                 }
                 if let Ok(mut slot) = watcher_slot_thread.lock() {
+                    if cancelled_thread.load(Ordering::Acquire) {
+                        return;
+                    }
                     *slot = Some(watcher);
                 } else {
                     return;
@@ -132,6 +152,9 @@ impl FsWatchController {
                         }
                     };
 
+                    if cancelled_thread.load(Ordering::Acquire) {
+                        break;
+                    }
                     match recv {
                         Err(()) => break,
                         Ok(None) => {
@@ -147,6 +170,9 @@ impl FsWatchController {
                                 }
                                 let batch = std::mem::take(&mut pending);
                                 for payload in payloads_from_events(batch) {
+                                    if cancelled_thread.load(Ordering::Acquire) {
+                                        break;
+                                    }
                                     invalidate_caps_for_paths(&app, &watch_root, &payload.paths);
                                     // Watch-folder auto-ingest (papers/
                                     // adoption); schedules work, never blocks
@@ -184,14 +210,11 @@ impl FsWatchController {
             })
             .map_err(|e| e.to_string())?;
 
-        let mut guard = self
-            .inner
-            .lock()
-            .map_err(|_| "fs watch controller lock poisoned".to_string())?;
         guard.insert(
             window_label,
             WatchHandle {
                 watcher: watcher_slot,
+                cancelled,
             },
         );
         Ok(())
@@ -200,12 +223,7 @@ impl FsWatchController {
     /// Stop and drop the watcher for `window_label` (no-op if none).
     pub fn stop(&self, window_label: &str) {
         if let Ok(mut guard) = self.inner.lock() {
-            if let Some(handle) = guard.remove(window_label) {
-                if let Ok(mut slot) = handle.watcher.lock() {
-                    // Dropping RecommendedWatcher closes its channel and wakes `recv`.
-                    *slot = None;
-                }
-            }
+            guard.remove(window_label);
         }
     }
 }
