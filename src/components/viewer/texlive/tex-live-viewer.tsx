@@ -685,10 +685,14 @@ export function TexLiveViewer({
 
 		void (async () => {
 			try {
-				if (!vaultPath) throw new Error("No vault is open");
+				if (!vaultPath) throw new Error(t("fileTree.liveFailed"));
 				unlisten = await listen<RtexEventPayload>("rtex:event", (event) =>
 					onEvent(event.payload),
 				);
+				if (disposed) {
+					unlisten();
+					return;
+				}
 				const session = await startTexLiveSession(rootPath, vaultPath);
 				if (disposed) {
 					await stopTexLiveSession(session.id);
@@ -731,6 +735,8 @@ export function TexLiveViewer({
 		return () => {
 			disposed = true;
 			unlisten?.();
+			unlisten = null;
+			pending = [];
 			const session = sessionRef.current;
 			sessionRef.current = null;
 			if (session) void stopTexLiveSession(session.id);
