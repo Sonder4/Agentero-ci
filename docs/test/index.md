@@ -62,7 +62,7 @@ test/
 
 - `test/helpers/create-test-vault.ts` 用临时目录创建真实文件形态的 Vault。
 - mock 类 helper 经 `vi.mock` 工厂使用：`vi.mock("react-i18next", () => import("./helpers/i18n"))`、`vi.mock("@/lib/core/tauri", async () => (await import("./helpers/tauri")).makeTauriPlatform({ platformOS: "macos" }))`。`vi.mock` 工厂被 hoist，不能引用顶层 import；自定义行为用 `vi.hoisted` 或 async 工厂内 dynamic import。
-- `test/scripts/create-demo-vault.mjs` 生成符合 catalog + 嵌套 paper 文件夹约定的 demo Vault（含 `.agentero/catalog.sqlite`，**schema_version = 3**）。
+- `test/scripts/create-demo-vault.mjs` 生成符合 catalog + 嵌套 paper 文件夹约定的 demo Vault（含 `.agentero/catalog.sqlite`，以 schema_version 3 写入，应用或 CLI 打开时迁移到当前版本）。`--verify` 接受 3 到 `catalog/schema.rs` 当前版本之间的任意值。
 - 测试文件可以从 `src/` import 生产代码，但生产代码不能从 `test/` import。
 - 优先在每个测试内声明最小必要 Vault 文件，让测试数据和断言靠近。
 
@@ -90,7 +90,7 @@ Demo 完整包内容（`--empty` 除外）：
 | paper 根 PDF | `{paper}/{id}.pdf` | 本地优先 PDF 预览 |
 | 非 papers PDF | `assets/sample.pdf`、`notes/attachments/reading-list.pdf` | 任意路径 PDF 预览 |
 | 图片 | `assets/figures/*.{png,jpg,gif,webp,svg,bmp,ico}` | 中间栏图片预览 |
-| Catalog | `.agentero/catalog.sqlite` | schema v3（含 `is_read` / Translator 列）+ 样例 paper 行 |
+| Catalog | `.agentero/catalog.sqlite` | 以 schema v3 写入（含 `is_read` / Translator 列）+ 样例 paper 行，打开时迁移到当前版本 |
 
 每次生成会**重建** `catalog.sqlite`（避免重复跑脚本留下旧 schema）。依赖本机 `sqlite3` CLI。
 

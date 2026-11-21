@@ -5,7 +5,8 @@
  * - No default PAPERS.md / library.bib
  * - Paper folders as minimal units (flat + nested under papers/)
  * - Loose PDFs / images outside papers/ (center-pane preview fixtures)
- * - Catalog SQLite schema_version = 3 (matches Host schema.rs)
+ * - Catalog SQLite seeded at schema_version 3; the app and CLI migrate it to
+ *   the current version (catalog/schema.rs) when they open the vault
  * - Optional metadata.json for transition / external tools
  *
  * Usage:
@@ -20,7 +21,14 @@
  */
 
 import { execFileSync } from "node:child_process";
-import { access, mkdir, readdir, rm, writeFile } from "node:fs/promises";
+import {
+	access,
+	mkdir,
+	readdir,
+	readFile,
+	rm,
+	writeFile,
+} from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -28,8 +36,26 @@ import { fileURLToPath } from "node:url";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(__dirname, "../..");
 
-/** Must match `src-tauri/src/services/catalog/schema.rs` SCHEMA_VERSION. */
-const SCHEMA_VERSION = 3;
+/**
+ * Schema the DDL below creates. Opening the vault migrates it forward through
+ * the full ladder (covered by `migrates_v1_to_current_through_full_ladder`),
+ * so the seed also exercises migration.
+ */
+const SEED_SCHEMA_VERSION = 3;
+
+/** Current catalog schema, read from the Rust source so it cannot drift. */
+async function currentSchemaVersion() {
+	const source = await readFile(
+		path.join(
+			REPO_ROOT,
+			"crates/agentero-core/src/features/paper/catalog/schema.rs",
+		),
+		"utf8",
+	);
+	const match = source.match(/pub const SCHEMA_VERSION: i32 = (\d+);/);
+	if (!match) throw new Error("SCHEMA_VERSION not found in catalog/schema.rs");
+	return Number(match[1]);
+}
 
 /**
  * Fresh CREATE for schema v3 (v1 base + v2 Translator cols + v3 is_read).
@@ -522,7 +548,7 @@ function sqlQuote(s) {
 function buildCatalogSql(papers) {
 	const lines = [
 		DDL.trim(),
-		`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('schema_version', '${SCHEMA_VERSION}');`,
+		`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('schema_version', '${SEED_SCHEMA_VERSION}');`,
 		`INSERT OR REPLACE INTO schema_meta(key, value) VALUES('agentero_app', 'agentero');`,
 	];
 	for (const p of papers) {
@@ -716,10 +742,16 @@ async function verifyVault(root) {
 				[dbPath, "SELECT value FROM schema_meta WHERE key='schema_version';"],
 				{ encoding: "utf8" },
 			).trim();
+			// Freshly seeded (3) or already migrated by the app (up to current).
+			const current = await currentSchemaVersion();
+			const version = Number(ver);
 			checks.push({
 				name: "schema_version",
-				ok: ver === String(SCHEMA_VERSION),
-				detail: `got ${ver}, expect ${SCHEMA_VERSION}`,
+				ok:
+					Number.isInteger(version) &&
+					version >= SEED_SCHEMA_VERSION &&
+					version <= current,
+				detail: `got ${ver}, expect ${SEED_SCHEMA_VERSION}–${current}`,
 			});
 			const count = execFileSync(
 				"sqlite3",
@@ -927,7 +959,9 @@ async function main() {
 		console.log(
 			`  loose PDFs: ${LOOSE_MEDIA.pdfs.length} · images: ${LOOSE_MEDIA.images.length}`,
 		);
-		console.log(`  catalog schema_version: ${SCHEMA_VERSION}`);
+		console.log(
+			`  catalog schema_version: ${SEED_SCHEMA_VERSION} (migrated to ${await currentSchemaVersion()} on open)`,
+		);
 	}
 
 	const result = await verifyVault(root);
