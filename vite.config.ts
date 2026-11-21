@@ -88,7 +88,9 @@ export default defineConfig(async () => ({
 			// 3. tell Vite to ignore the Rust host and its build artifacts.
 			//    `target/` holds thousands of generated files; watching it can
 			//    exhaust the system inotify limit (ENOSPC) during `tauri dev`.
-			ignored: ["**/src-tauri/**", "**/target/**"],
+			//    `tmp/` holds local test vaults; on Windows a watched directory
+			//    cannot be renamed, so moving or restoring folders there fails.
+			ignored: ["**/src-tauri/**", "**/target/**", "**/tmp/**"],
 		},
 	},
 }));
