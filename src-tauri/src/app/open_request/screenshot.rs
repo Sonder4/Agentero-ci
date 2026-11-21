@@ -11,7 +11,9 @@
 use super::host_action::{HostAction, HostActionError};
 use super::{local_ui_screenshot_path, UiRequestPayload};
 use std::path::Path;
-use tauri::{AppHandle, Manager, Runtime};
+#[cfg(any(windows, target_os = "macos", target_os = "linux"))]
+use tauri::Manager;
+use tauri::{AppHandle, Runtime};
 
 /// Capture the requested window and answer the CLI request.
 pub fn handle<R: Runtime>(app: &AppHandle<R>, req: &UiRequestPayload) {
