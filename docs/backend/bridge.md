@@ -28,7 +28,7 @@
 
 ## 身份与持久化
 
-所有文件都在 `bridge_config_dir()` = `<XDG 配置目录>/agentero/bridge/`（Unix 默认 `~/.config`，Windows 为 `%APPDATA%`，移动端为 `dirs::config_dir()`）。写入统一走 `write_private_json`：先 `create_dir_all`，再 `fs::write` 写入格式化 JSON。只有 Unix 桌面会随后 chmod `0600`，iOS 和 Windows 不 chmod。
+所有文件都在 `bridge_config_dir()` = `<XDG 配置目录>/agentero/bridge/`（Unix 默认 `~/.config`，Windows 为 `%APPDATA%`，移动端为 `dirs::config_dir()`）。写入统一走 `write_private_json`：先 `create_dir_all`，再用 owner-only 原子写入替换 JSON；Unix 临时文件从创建起即为 `0600`，Windows 继承目录权限。
 
 | 文件 | 端 | 内容 |
 |---|---|---|
@@ -71,7 +71,7 @@ offer 不带 token。`from_pair_url` 会校验以下几项：scheme/host 必须�
 | `vault_tree_build` | — | 构建整棵 Vault 树（`tree::build_tree`，带 CapsCache） |
 | `vault_search` | `query`, `limit?` | 在当前 Vault 中全文搜索（`search::vault_search`） |
 | `vault_read_text` | `path` | 返回 UTF-8 文本全文 |
-| `vault_write_text` | `path`, `content` | 用 `fs::write` 覆盖写入文本，返回 `null` |
+| `vault_write_text` | `path`, `content` | 用原子替换写入文本，返回 `null` |
 | `bridge_file_info` | `path` | 返回 `{path, size, modifiedAt(ms), sha256}`，`path` 为 `/` 分隔的 Vault 相对路径 |
 | `bridge_paper_pdf_info` | `paperPath` | 论文目录第一层按路径排序后的第一个 `.pdf`（扩展名不区分大小写），返回 file info；目录中没有 PDF 时报错 |
 | `bridge_read_bytes` | `path`, `offset`, `len?` | 读取一个分块，`len` 取值 1..=256 KiB（默认 256 KiB）。返回 `{file, offset, bytesB64}`（base64url）；`offset` 超过文件大小时报错 |
@@ -133,7 +133,7 @@ Host 状态不持久化，应用启动时不会自动开启。用户在设置页
 ## 已知限制
 
 - `identity.json` / `devices.json` 先用 `fs::write` 写入，再 chmod `0600`（chmod 仅限 Unix 桌面），写入不是原子的。写入中断留下残缺 JSON 后，`load_or_create`（以及设备表读取）会一直失败，直到手动删除该文件。
-- `vault_write_text` 用 `fs::write` 直接覆盖，没有走 atomic_write；路径解析只规范化父目录。
+- `vault_write_text` 规范化并校验父目录，在该目录内原子替换文件；替换不会跟随末段符号链接。
 
 ## 代码
 

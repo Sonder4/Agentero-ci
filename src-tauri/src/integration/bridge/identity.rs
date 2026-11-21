@@ -404,18 +404,7 @@ fn write_private_json<T: Serialize>(path: &Path, value: &T) -> Result<(), AppErr
         .parent()
         .ok_or_else(|| AppError::message("Bridge config path has no parent"))?;
     fs::create_dir_all(parent)?;
-    let raw = serde_json::to_vec_pretty(value)?;
-    fs::write(path, raw)?;
-
-    // iOS owns the app container and may reject chmod even for files created
-    // by the app. The container already provides the required isolation;
-    // keep explicit 0600 hardening for desktop Unix targets.
-    #[cfg(all(unix, not(target_os = "ios")))]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        fs::set_permissions(path, fs::Permissions::from_mode(0o600))?;
-    }
-    Ok(())
+    crate::core::fs::json_store_with(path, value, &crate::core::fs::AtomicOpts::OWNER_ONLY)
 }
 
 #[cfg(test)]

@@ -814,7 +814,7 @@ async fn dispatch_rpc(
                 .and_then(Value::as_str)
                 .ok_or_else(|| AppError::message("content is required"))?;
             let file = vault_relative_path(vault_root, path, true)?;
-            fs::write(file, content)?;
+            crate::core::fs::atomic_write(&file, content.as_bytes())?;
             Ok(Value::Null)
         }
         "bridge_file_info" => {
