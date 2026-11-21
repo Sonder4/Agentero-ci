@@ -5,6 +5,7 @@ import { act, createElement } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { I18nextProvider } from "react-i18next";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { HtmlViewer } from "@/components/viewer/html-viewer";
 import zhViewer from "@/i18n/locales/zh-CN/viewer.json";
 import { clearArxivHtmlCache } from "@/lib/paper/arxiv-html";
@@ -54,10 +55,14 @@ async function show(srcUrl: string) {
 			createElement(
 				I18nextProvider,
 				{ i18n },
-				createElement(HtmlViewer, {
-					srcUrl,
-					onShowPdf: showPdf,
-				}),
+				createElement(
+					TooltipProvider,
+					null,
+					createElement(HtmlViewer, {
+						srcUrl,
+						onShowPdf: showPdf,
+					}),
+				),
 			),
 		);
 	});
