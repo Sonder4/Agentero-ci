@@ -120,36 +120,34 @@ fn canonical(path: &Path) -> Result<PathBuf, AppError> {
 
 /// Point rtex at the bundled support files and the detected TeX Live bin.
 fn prepare_environment(app: &tauri::AppHandle) {
-    if std::env::var_os("RTEX_TEXDIR").is_none() {
-        let bundled = app
-            .path()
-            .resource_dir()
-            .ok()
-            .map(|dir| dir.join("rtex").join("tex"));
-        // Dev builds do not copy bundle resources; use the checked-in copy so
-        // the same support files are exercised before packaging.
-        let dev = Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("rtex")
-            .join("tex");
-        for candidate in [bundled, Some(dev)].into_iter().flatten() {
-            if candidate.join("rtex-dl.lua").is_file() {
-                std::env::set_var("RTEX_TEXDIR", candidate);
-                break;
+    static INIT: std::sync::Once = std::sync::Once::new();
+    // rtex reads these two compatibility variables during discovery and sets
+    // its own child PATH. Keep the application's PATH untouched.
+    INIT.call_once(|| {
+        if std::env::var_os("RTEX_TEXDIR").is_none() {
+            let bundled = app
+                .path()
+                .resource_dir()
+                .ok()
+                .map(|dir| dir.join("rtex").join("tex"));
+            // Dev builds do not copy bundle resources; use the checked-in copy so
+            // the same support files are exercised before packaging.
+            let dev = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("rtex")
+                .join("tex");
+            for candidate in [bundled, Some(dev)].into_iter().flatten() {
+                if candidate.join("rtex-dl.lua").is_file() {
+                    std::env::set_var("RTEX_TEXDIR", candidate);
+                    break;
+                }
             }
         }
-    }
-    if let Some(lualatex) = crate::features::compile::resolve_engine("lualatex") {
-        if let Some(bin_dir) = lualatex.parent() {
-            std::env::set_var("RTEX_TEXLIVE_BIN", bin_dir);
-            // GUI apps inherit launchd's minimal PATH; kpsewhich/lualatex live
-            // in TeX Live's bin directory, not in it.
-            let inherited = std::env::var_os("PATH").unwrap_or_default();
-            let mut path = std::ffi::OsString::from(bin_dir);
-            path.push(":");
-            path.push(inherited);
-            std::env::set_var("PATH", path);
+        if let Some(lualatex) = crate::features::compile::resolve_engine("lualatex") {
+            if let Some(bin_dir) = lualatex.parent() {
+                std::env::set_var("RTEX_TEXLIVE_BIN", bin_dir);
+            }
         }
-    }
+    });
 }
 
 #[tauri::command]
@@ -408,12 +406,12 @@ pub async fn rtex_kpsewhich(
         .and_then(|p| p.parent().map(Path::to_path_buf))
     {
         let inherited = std::env::var_os("PATH").unwrap_or_default();
-        let mut path = std::ffi::OsString::from(bin_dir);
-        path.push(":");
-        path.push(inherited);
-        cmd.env("PATH", path);
+        let entries = std::env::split_paths(&inherited).filter(|part| *part != bin_dir);
+        if let Ok(path) = std::env::join_paths(std::iter::once(bin_dir.clone()).chain(entries)) {
+            cmd.env("PATH", path);
+        }
     }
-    let output = match cmd.output().await {
+    let output = match crate::core::process::command_output(&mut cmd).await {
         Ok(o) => o,
         Err(e) => return ApiResult::err(AppError::message(format!("kpsewhich: {e}"))),
     };

@@ -20,7 +20,7 @@
 | `rtex_status` | lualatex + support files 检测 |
 | `rtex_kpsewhich` / `rtex_read_tex_file` | 渲染器取字体/map/图片/layout PDF；只允许 kpsewhich 结果、项目根、`.agentero/rtex`、TeX Live 根 |
 
-依赖：`rtex-core`（git tag `v0.0.6`，`src-tauri/Cargo.toml`），仅桌面非移动 target 编译。support files 从 `realtime-tex/tex` 复制到 `src-tauri/rtex/tex`，由 `bundle.resources` 打包；运行时设置 `RTEX_TEXDIR`。GUI 的 PATH 不含 TeX Live，`prepare_environment` 还会设置 `RTEX_TEXLIVE_BIN` 并把它的 bin 目录前置到 PATH。
+依赖：`rtex-core`（git tag `v0.0.6`，`src-tauri/Cargo.toml`），仅桌面非移动 target 编译。support files 从 `realtime-tex/tex` 复制到 `src-tauri/rtex/tex`，由 `bundle.resources` 打包；运行时设置 `RTEX_TEXDIR`。GUI 的 PATH 不含 TeX Live，`prepare_environment` 还会设置 `RTEX_TEXLIVE_BIN` 。rtex 为自己的 TeX 子进程配置 PATH，Host 进程的 PATH 保持原样；kpsewhich 的子进程 PATH 按平台分隔符去重后前置 TeX 目录。
 
 **build_dir 固定为 `<vault>/.agentero/rtex/<root-hash>`**：`.agentero` 已被文件树、watcher、sync 和 LaTeX root 反向扫描忽略，后台 pass 的 aux/PDF 不会污染项目或触发刷新。
 
