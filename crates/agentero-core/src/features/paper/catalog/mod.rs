@@ -250,7 +250,7 @@ fn move_dir_all(src: &Path, dst: &Path) -> Result<(), AppError> {
     if let Some(parent) = dst.parent() {
         std::fs::create_dir_all(parent)?;
     }
-    if std::fs::rename(src, dst).is_ok() {
+    if crate::fs::move_path(src, dst).is_ok() {
         return Ok(());
     }
     let created_target = !dst.exists();

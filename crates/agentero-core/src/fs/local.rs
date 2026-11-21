@@ -129,8 +129,9 @@ impl VaultFs for LocalFs {
                 .await
                 .map_err(|e| AppError::message(format!("mkdir parent: {e}")))?;
         }
-        fs::rename(&src, &dst)
+        tokio::task::spawn_blocking(move || super::move_path(&src, &dst))
             .await
+            .map_err(|e| AppError::message(format!("rename: {e}")))?
             .map_err(|e| AppError::message(format!("rename: {e}")))
     }
 

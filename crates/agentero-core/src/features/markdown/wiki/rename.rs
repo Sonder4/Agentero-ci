@@ -392,7 +392,7 @@ impl WikiRenameTransaction {
                     )
                 })?;
             }
-            fs::rename(&from_abs, &to_abs).map_err(|error| {
+            crate::fs::move_path(&from_abs, &to_abs).map_err(|error| {
                 WikiRenameError::new(
                     WikiRenameErrorCode::MoveFailed,
                     format!("could not move {} to {}: {error}", self.from, self.to),
@@ -449,9 +449,9 @@ impl WikiRenameTransaction {
     ) -> WikiRenameRollback {
         let mut complete = restore_written_sources(&self.vault_root, written);
         if primary_move_completed
-            && fs::rename(
-                self.vault_root.join(&self.to),
-                self.vault_root.join(&self.from),
+            && crate::fs::move_path(
+                &self.vault_root.join(&self.to),
+                &self.vault_root.join(&self.from),
             )
             .is_err()
         {

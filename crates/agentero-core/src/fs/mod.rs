@@ -4,6 +4,7 @@
 
 mod dir_link;
 mod local;
+mod move_path;
 mod path;
 mod sidecar_lock;
 mod store;
@@ -14,6 +15,7 @@ pub use dir_link::{
 };
 
 pub use local::LocalFs;
+pub use move_path::move_path;
 pub use path::{
     canonicalize_best_effort, ensure_vault_dir, join_remote, normalize_rel, normalize_rel_lexical,
     normalize_rel_separators, path_escapes_root, resolve_paper_dir, resolve_vault,

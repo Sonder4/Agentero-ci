@@ -418,7 +418,7 @@ pub fn trash_paths(vault_root: &Path, rels: &[String]) -> Result<TrashResult, Ap
     write_manifest(&batch_dir, &manifest)?;
     for index in 0..manifest.items.len() {
         let item = &manifest.items[index];
-        fs::rename(vault_root.join(&item.rel), batch_dir.join(&item.stored))?;
+        crate::fs::move_path(&vault_root.join(&item.rel), &batch_dir.join(&item.stored))?;
         manifest.items[index].phase = TrashPhase::Trashed;
         write_manifest(&batch_dir, &manifest)?;
     }
@@ -587,7 +587,7 @@ fn restore_local_entry(
             if let Some(parent) = target.parent() {
                 fs::create_dir_all(parent)?;
             }
-            fs::rename(batch.join(&manifest.items[index].stored), &target)?;
+            crate::fs::move_path(&batch.join(&manifest.items[index].stored), &target)?;
         }
         RestoreAction::Finish => {}
     }
