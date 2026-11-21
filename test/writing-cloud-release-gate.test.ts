@@ -32,7 +32,7 @@ it.each([
 	undefined,
 	"0",
 	"1",
-])("uses the account build flag (%s) to control automatic cloud checkout", async (flag) => {
+])("keeps automatic cloud checkout disabled with the legacy account flag (%s)", async (flag) => {
 	vi.resetModules();
 	vi.stubEnv("VITE_AGENTERO_ACCOUNT_SURFACE", flag);
 	vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -54,7 +54,7 @@ it.each([
 			);
 		});
 		expect(container.textContent).toBe("Local editor");
-		expect(openWritingCheckout).toHaveBeenCalledTimes(flag === "1" ? 1 : 0);
+		expect(openWritingCheckout).not.toHaveBeenCalled();
 	} finally {
 		await act(async () => root.unmount());
 	}
