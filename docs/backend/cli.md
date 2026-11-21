@@ -536,7 +536,7 @@ agentero paper move papers/inbox/demo papers/archive
 agentero paper move papers/inbox/demo papers/new-shelf
 ```
 
-如果路径以 Vault 根目录开头，则自动识别为跨 Vault 迁移（源 Vault 的 Catalog 记录会被删除并插入到目标 Vault）：
+相对路径（`papers/x`、`./papers/x`）一律相对于解析出的 Vault 根目录（`--vault`、`AGENTERO_VAULT`、当前目录所在的 Vault 或默认 Vault），不按 shell 当前目录拼接。只有绝对路径会按路径识别所在 Vault；绝对路径以另一个 Vault 根目录开头时，自动识别为跨 Vault 迁移（源 Vault 的 Catalog 记录会被删除并插入到目标 Vault）：
 
 ```bash
 agentero paper move /path/to/src-vault/papers/inbox/demo /path/to/dst-vault/papers/archive

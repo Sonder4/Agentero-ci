@@ -844,24 +844,22 @@ struct MoveTarget {
 
 fn resolve_move_target(arg: &str, globals: &GlobalOpts) -> Result<MoveTarget, CliError> {
     let normalized = arg.replace('\\', "/");
+    let path = Path::new(arg);
 
-    // Vault-relative paper path: use current vault.
-    if normalized.starts_with("papers/") || normalized == "papers" {
+    // Only an absolute path names its own vault. Every relative spelling
+    // (`papers/x`, `./papers/x`, `papers\x`) is relative to the resolved vault
+    // (`--vault`, `AGENTERO_VAULT`, the vault containing the cwd, or the
+    // default), so `--vault` is never silently replaced by the shell's vault.
+    if !path.is_absolute() {
         let vault = resolve_vault(globals)?;
         return Ok(MoveTarget {
             vault,
-            rel: normalized,
+            rel: agentero_core::fs::normalize_rel(&normalized),
         });
     }
 
-    // Otherwise try to find a Vault root in the path.
-    let path = Path::new(arg);
-    let abs = if path.is_absolute() {
-        path.to_path_buf()
-    } else {
-        std::env::current_dir()?.join(path)
-    };
-    let abs = agentero_core::fs::canonicalize_best_effort(&abs);
+    // Absolute path: find the Vault root that contains it.
+    let abs = agentero_core::fs::canonicalize_best_effort(path);
 
     let mut cur = abs.clone();
     loop {
