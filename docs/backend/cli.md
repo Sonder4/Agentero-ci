@@ -57,7 +57,7 @@ Headless Vault / Catalog / Wiki 接口；**不含** BYOA / paper-reader。
 
 - clap 层的参数解析错误（未知子命令、未知 flag）在 `--json` 下也**不**包信封，直接由 clap 把带样式的用法文本写到 stderr，退出码 2。脚本应先看退出码，再解析 stdout。
 - 部分错误码目前由错误消息文本推断：Core 返回的所有 SQLite 错误都映射为 `catalog_busy`（不只是锁冲突），消息中含 `not found` 的错误映射为 `paper_not_found`。`feed` 子命令自行映射，SQLite 错误以 `sqlite` 返回。不要把 `catalog_busy` 无条件当作可重试。
-- 文本模式下 `export bib` 输出到 stdout 时，导出内容之后还会多打一行 `exported N entries as … → -`；重定向到文件时请用 `-o <FILE>`、`--json` 或 `-q`。
+- 文本模式下 `export bib` 输出到 stdout 时，stdout 只有导出内容，`exported N entries as … → -` 摘要写到 stderr（`-q` 不输出），`> lib.bib` 可以直接得到合法文件。
 
 ### 应用设置（`settings`）
 

@@ -69,20 +69,26 @@ async fn export_bib(globals: &GlobalOpts, format: &str, out: &PathBuf) -> Result
         out.display().to_string()
     };
 
+    let summary = format!(
+        "exported {} entries as {} → {}",
+        result.count, result.format, written_to
+    );
+    let to_stdout_text =
+        matches!(globals.format, crate::output::OutputFormat::Text) && out.as_os_str() == "-";
     let mut v = to_value(&result)?;
     if let Some(obj) = v.as_object_mut() {
         // In JSON mode keep content; when written to file still include content for scripts.
         obj.insert("writtenTo".into(), json!(written_to));
-        obj.insert(
-            "lines".into(),
-            json!([format!(
-                "exported {} entries as {} → {}",
-                result.count, result.format, written_to
-            )]),
-        );
-        // Avoid dumping huge bib twice in text mode (already wrote content to stdout).
-        if matches!(globals.format, crate::output::OutputFormat::Text) && out.as_os_str() == "-" {
+        if to_stdout_text {
+            // stdout carries only the exported data (`> lib.bib` stays valid);
+            // the summary goes to stderr. Avoid dumping the content twice.
+            if !globals.quiet {
+                eprintln!("{summary}");
+            }
+            obj.insert("lines".into(), json!([]));
             obj.insert("content".into(), json!("(written to stdout)"));
+        } else {
+            obj.insert("lines".into(), json!([summary]));
         }
     }
     Ok(v)
