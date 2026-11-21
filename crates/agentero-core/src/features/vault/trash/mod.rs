@@ -202,7 +202,22 @@ pub fn trash_batch_rel(batch_id: &str) -> String {
 /// `..`, and anything whose path starts with `.agentero` (including the
 /// directory itself).
 pub fn is_trash_candidate(rel: &str) -> bool {
-    !rel.is_empty() && rel != "papers" && !rel.contains("..") && !rel.starts_with(".agentero")
+    // Windows and macOS volumes are case-insensitive by default, so `Papers`
+    // and `.Agentero` name the protected folders there.
+    let lower = rel.to_ascii_lowercase();
+    !rel.is_empty() && lower != "papers" && !rel.contains("..") && !lower.starts_with(".agentero")
+}
+
+/// Vault-relative form used for every delete decision: `/` separators and no
+/// empty or `.` segments, so `.` becomes the (protected) vault root and
+/// `./papers` the protected `papers` root. `..` is kept for the candidate
+/// check to reject, and names keep their surrounding spaces.
+pub fn trash_rel(raw: &str) -> String {
+    raw.replace('\\', "/")
+        .split('/')
+        .filter(|segment| !segment.is_empty() && *segment != ".")
+        .collect::<Vec<_>>()
+        .join("/")
 }
 
 /// Decide which rels are eligible and their stored names.
@@ -231,7 +246,7 @@ where
     let mut items = Vec::new();
     let mut seen = std::collections::HashSet::new();
     for (i, raw) in rels.iter().enumerate() {
-        let rel = normalize_rel_separators(raw);
+        let rel = trash_rel(raw);
         if !is_trash_candidate(&rel) || !seen.insert(rel.clone()) || !present(&rel) {
             continue;
         }
@@ -317,7 +332,7 @@ pub fn delete_absent_paper_rows(
     let mut removed = Vec::new();
     let mut ids = Vec::new();
     for raw in rels {
-        let rel = normalize_rel_separators(raw);
+        let rel = trash_rel(raw);
         if !is_trash_candidate(&rel) || !is_under_papers(&rel) || vault_root.join(&rel).exists() {
             continue;
         }
@@ -386,7 +401,7 @@ pub fn trash_paths(vault_root: &Path, rels: &[String]) -> Result<TrashResult, Ap
     );
     let mut snapshots = std::collections::HashMap::new();
     for rel in rels {
-        let rel = normalize_rel_separators(rel);
+        let rel = trash_rel(rel);
         if is_trash_candidate(&rel) {
             snapshots.insert(rel.clone(), papers::list_under_path(vault_root, &rel)?);
         }
@@ -476,14 +491,17 @@ pub fn delete_paths(
     let root = vault_root.canonicalize()?;
     let mut clean: Vec<(String, std::path::PathBuf, bool)> = Vec::new();
     for raw in rels {
-        let rel = crate::fs::normalize_rel_separators(raw);
-        let rel = rel.trim_matches('/');
-        if rel.is_empty() {
+        let rel = trash_rel(raw);
+        let rel = rel.as_str();
+        if rel.is_empty() && raw.trim().is_empty() {
             continue;
         }
-        if rel == "papers"
-            || rel == ".agentero"
-            || rel.starts_with(".agentero/")
+        let lower = rel.to_ascii_lowercase();
+        // `.` / `./` normalize to the empty rel: the vault root itself.
+        if rel.is_empty()
+            || lower == "papers"
+            || lower == ".agentero"
+            || lower.starts_with(".agentero/")
             || rel.split('/').any(|s| s == "..")
         {
             return Err(AppError::message(format!(
@@ -496,6 +514,11 @@ pub fn delete_paths(
         let resolved = abs.canonicalize()?;
         if !resolved.starts_with(&root) {
             return Err(AppError::message(format!("path escapes vault root: {rel}")));
+        }
+        if resolved == root {
+            return Err(AppError::message(format!(
+                "cannot permanently delete protected path: {rel}"
+            )));
         }
         clean.push((rel.to_string(), abs, meta.is_dir()));
     }

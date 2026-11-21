@@ -6,14 +6,14 @@
 
 use super::session::{RemoteRegistry, RemoteSession};
 use crate::core::error::AppError;
-use crate::core::fs::{normalize_rel_separators, VaultFs, WriteOpts};
+use crate::core::fs::{VaultFs, WriteOpts};
 use crate::features::paper::catalog::papers;
 use crate::features::vault::trash::remote_ops::RemoteTrashOps;
 use crate::features::vault::trash::{
     delete_absent_paper_rows, delete_trashed_catalog, is_trash_candidate, plan_trash,
     restore_action, restore_catalog, restore_sidecar_path, snapshot_title, trash_batch_rel,
-    validate_batch_id, RestoreAction, TrashEntry, TrashManifest, TrashPhase, TrashResult,
-    TRASH_REL,
+    trash_rel, validate_batch_id, RestoreAction, TrashEntry, TrashManifest, TrashPhase,
+    TrashResult, TRASH_REL,
 };
 use std::collections::HashMap;
 use std::path::Path;
@@ -35,7 +35,7 @@ pub async fn trash_paths(
     // still aborts before any move. Ineligible shapes are not probed.
     let mut present_map = HashMap::new();
     for raw in rels {
-        let rel = normalize_rel_separators(raw);
+        let rel = trash_rel(raw);
         if !is_trash_candidate(&rel) {
             continue;
         }

@@ -692,9 +692,17 @@ fn paths(globals: &GlobalOpts, ref_: &str) -> Result<Value, CliError> {
 
 fn delete(globals: &GlobalOpts, path: &str, files: bool) -> Result<Value, CliError> {
     let vault = resolve_vault(globals)?;
-    let path = path.trim().trim_matches('/').replace('\\', "/");
-    if path.is_empty() {
+    if path.trim().is_empty() {
         return Err(CliError::usage("path is required"));
+    }
+    let path = agentero_core::features::trash::trash_rel(path.trim());
+    // The vault root, `papers/`, `.agentero/` and `..` paths are never deleted,
+    // however they are spelled (`.`, `./papers`, `Papers`).
+    if !agentero_core::features::trash::is_trash_candidate(&path) {
+        return Err(CliError::usage(format!(
+            "cannot delete protected path: {}",
+            if path.is_empty() { "." } else { path.as_str() }
+        )));
     }
     if files {
         let msg = format!("Delete paper files on disk for '{path}'? This cannot be undone.");
