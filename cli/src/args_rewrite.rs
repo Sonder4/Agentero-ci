@@ -7,22 +7,6 @@
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
-/// Subcommand names accepted by the CLI (must stay in sync with `Commands`).
-const KNOWN_COMMANDS: &[&str] = &[
-    "vault",
-    "tree",
-    "paper",
-    "import",
-    "export",
-    "doctor",
-    "layout",
-    "logs",
-    "mark",
-    "translate",
-    "open",
-    "help",
-];
-
 /// Rewrite `agentero <path>` into `agentero open <path>` when safe.
 ///
 /// `args` is the full argv including program name at index 0.
@@ -57,8 +41,17 @@ pub fn rewrite_path_shorthand(args: Vec<OsString>) -> Vec<OsString> {
     out
 }
 
+/// Subcommand names and aliases come from clap, so a new or removed command
+/// can never be mistaken for a path (or a folder for a removed command).
 fn is_known_command(name: &str) -> bool {
-    KNOWN_COMMANDS.iter().any(|c| c.eq_ignore_ascii_case(name))
+    use clap::CommandFactory;
+    name.eq_ignore_ascii_case("help")
+        || crate::Cli::command().get_subcommands().any(|command| {
+            command.get_name().eq_ignore_ascii_case(name)
+                || command
+                    .get_all_aliases()
+                    .any(|alias| alias.eq_ignore_ascii_case(name))
+        })
 }
 
 fn looks_like_path(text: &str) -> bool {
