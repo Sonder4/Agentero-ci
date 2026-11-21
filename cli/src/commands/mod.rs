@@ -5,6 +5,7 @@ pub mod export;
 pub mod feed;
 pub mod import;
 pub mod layout;
+pub mod logs;
 pub mod mark;
 pub mod mcp;
 pub mod open;

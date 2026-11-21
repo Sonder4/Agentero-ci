@@ -655,6 +655,20 @@ agentero ui screenshot --window settings -o settings.png --overwrite
 - 控件范围覆盖 Agentero 渲染的界面。操作系统标题栏、系统文件对话框、网页 iframe 与 ChatGPT 子 WebView 由各自的宿主接收输入。浏览器原生文本编辑、焦点切换等默认行为仍需要实际按键。
 - 在广场代理网页或 HTML 论文阅读器中，`chatgpt.page.ask` 点击工具栏的「向 ChatGPT 询问此页」。网页正文菜单已打开时，`chatgpt.page.contextAsk` 执行同一动作。添加后可用 `ui actions --json` 确认引用控件出现。`chatgpt.quote.attach` 将对应摘录上传为 Markdown 附件，`chatgpt.quote.copy` 和 `chatgpt.quote.remove` 操作本地预览。问题在 ChatGPT 网页输入框中填写。
 
+### 读取桌面 App 日志（`logs`）
+
+```bash
+agentero logs path
+agentero logs tail --since <actionId> --json
+agentero logs tail --level warn -n 50
+agentero logs tail --grep ui_action
+```
+
+- 日志目录与桌面端 Tauri `app_log_dir` 一致：Windows 为 `%LOCALAPPDATA%\com.poco-ai.agentero\logs`，macOS 为 `~/Library/Logs/com.poco-ai.agentero`，Linux 为 `$XDG_DATA_HOME/com.poco-ai.agentero/logs`（默认 `~/.local/share/…`）。`--log-dir` 或环境变量 `AGENTERO_LOG_DIR` 可改用其它目录。
+- `tail` 按时间顺序读取轮转文件 `agentero_<时间>.log` 和当前的 `agentero.log`（每个 2 MB，保留 5 个），多行记录合并为一条。
+- `--since <actionId>` 从第一条提到该 id 的记录开始（`op start ui_action id=…` 或 `delivery=…`）；找不到时返回 `action_not_found`，通常是日志已经轮转掉。`--level` 只保留该级别及更严重的记录，`--grep` 不区分大小写匹配整条记录，`-n` / `--lines` 保留最后 N 条（默认 200，`0` 为全部）。筛选在 `--since` 之后进行，`matched` 是筛选后的条数，`truncated` 表示被 `-n` 截掉了一部分。
+- `--json` 的 `entries` 每条带 `date` / `time` / `level` / `target` / `message`；文本输出为原始日志行。没有日志文件时返回 `log_not_found`。
+
 ### 管理 ChatGPT 网页会话与项目
 
 `agentero ui chatgpt` 在已打开、已登录的右侧 ChatGPT 网页执行操作。项目使用 `projects` 返回的 `target`，网页提供项目链接时为相对路径，否则为 `name:<标题>`。会话写操作使用列表返回的 `path`，移入项目后使用移动命令返回的新路径。网页打开后可能把项目名称加入地址，菜单仍以列表中的链接定位会话。同名项目请使用具体路径。

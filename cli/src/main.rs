@@ -248,6 +248,11 @@ enum Commands {
         #[command(subcommand)]
         cmd: McpCmd,
     },
+    /// Read the desktop App log (path, tail, entries since a ui actionId).
+    Logs {
+        #[command(subcommand)]
+        cmd: commands::logs::LogsCmd,
+    },
     /// Workspace / window management in the desktop App (open/focus/close).
     Ui {
         #[command(subcommand)]
@@ -425,6 +430,7 @@ fn command_label(cmd: &Commands) -> &'static str {
         Commands::Layout { .. } => "cli.layout",
         Commands::Mark { .. } => "cli.mark",
         Commands::Mcp { .. } => "cli.mcp",
+        Commands::Logs { .. } => "cli.logs",
         Commands::Ui { .. } => "cli.ui",
         Commands::Table { .. } => "cli.table",
         Commands::Translate { .. } => "cli.translate",
@@ -466,6 +472,7 @@ async fn run(command: Commands, globals: &GlobalOpts) -> Result<serde_json::Valu
         Commands::Mcp { cmd } => match cmd {
             McpCmd::Serve(args) => commands::mcp::serve(args, globals).await,
         },
+        Commands::Logs { cmd } => commands::logs::run(cmd),
         Commands::Ui { cmd } => commands::ui::run(cmd, globals),
         Commands::Table { cmd } => commands::table::run(cmd, globals),
         Commands::Translate {
