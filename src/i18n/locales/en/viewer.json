@@ -31,6 +31,8 @@
 		"findNext": "Next match",
 		"findClose": "Close find",
 		"findNoResults": "No results",
+		"annotationLoadFailed": "Could not load annotations. Saving is paused until the file can be read.",
+		"marksLoadFailed": "Could not load PDF marks. Refocus the window or reopen the PDF to retry.",
 		"annotationDeleteFailed": "Failed to commit annotation deletion",
 		"exportAnnotatedPdf": "Export annotated PDF",
 		"exportingAnnotatedPdf": "Exporting annotated PDF…",

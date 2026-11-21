@@ -10,6 +10,7 @@
  */
 import { readDir } from "@tauri-apps/plugin-fs";
 
+import { normalizeLocalPath } from "@/lib/core/path";
 import { isTauri } from "@/lib/core/tauri";
 import {
 	joinVaultPath,
@@ -18,6 +19,10 @@ import {
 	removeVaultPath,
 	writeVaultFile,
 } from "@/lib/vault";
+import {
+	parseRemoteJoinedPath,
+	remoteList,
+} from "@/lib/vault/remote/remote-vault";
 
 export const MARKS_FOLDER = "marks";
 
@@ -35,20 +40,32 @@ export function markPath(paperAbsPath: string, id: string): string {
 /** Sentinel for files that failed to read/parse (never a real JSON value). */
 const CORRUPT_MARK = Symbol("marks.corrupt");
 
+export async function listMarkDirectory(path: string): Promise<string[]> {
+	const remote = parseRemoteJoinedPath(path);
+	const entries = remote
+		? await remoteList(remote.sessionId, remote.rel)
+		: await readDir(normalizeLocalPath(path));
+	return entries.map((entry) => entry.name);
+}
+
 /** Read + JSON.parse every per-id `*.json` under `marks/` (skip aggregate + corrupt). */
-export async function listMarkRaw(paperAbsPath: string): Promise<unknown[]> {
+export async function listMarkRaw(
+	paperAbsPath: string,
+	strict = false,
+): Promise<unknown[]> {
 	if (!paperAbsPath || !isTauri()) return [];
 	const dir = marksDir(paperAbsPath);
 	let names: string[] = [];
 	try {
-		const entries = await readDir(dir);
-		names = entries
-			.map((e) => e.name)
-			.filter(
-				(n): n is string =>
-					Boolean(n?.endsWith(".json")) && n !== ANNOTATIONS_JSON,
-			);
-	} catch {
+		if (!(await listMarkDirectory(paperAbsPath)).includes(MARKS_FOLDER))
+			return [];
+		const entries = await listMarkDirectory(dir);
+		names = entries.filter(
+			(n): n is string =>
+				Boolean(n?.endsWith(".json")) && n !== ANNOTATIONS_JSON,
+		);
+	} catch (error) {
+		if (strict) throw error;
 		return [];
 	}
 	// Each file is an independent IPC round-trip; read them concurrently
@@ -58,7 +75,8 @@ export async function listMarkRaw(paperAbsPath: string): Promise<unknown[]> {
 			try {
 				const raw = await readVaultFile(joinVaultPath(dir, name));
 				return JSON.parse(raw) as unknown;
-			} catch {
+			} catch (error) {
+				if (strict) throw error;
 				return CORRUPT_MARK;
 			}
 		}),

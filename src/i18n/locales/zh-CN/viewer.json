@@ -31,6 +31,8 @@
 		"findNext": "下一个",
 		"findClose": "关闭查找",
 		"findNoResults": "无结果",
+		"annotationLoadFailed": "无法加载批注，文件恢复可读前暂停保存。",
+		"marksLoadFailed": "无法加载 PDF 标记，请重新聚焦窗口或重新打开 PDF 后重试。",
 		"annotationDeleteFailed": "批注删除提交失败",
 		"exportAnnotatedPdf": "导出带批注的 PDF",
 		"exportingAnnotatedPdf": "正在导出带批注的 PDF…",

@@ -2,6 +2,7 @@ import type { PdfAnnotationObject } from "@embedpdf/models";
 import { PdfAnnotationSubtype } from "@embedpdf/models";
 import type { TrackedAnnotation } from "@embedpdf/plugin-annotation";
 import type { AnnotationTransferItem } from "@embedpdf/plugin-annotation/react";
+import i18n from "@/i18n";
 import { isTauri } from "@/lib/core/tauri";
 import {
 	dedupeAnnotationItems,
@@ -19,6 +20,7 @@ import type {
 } from "@/lib/pdf/highlight/types";
 import {
 	ANNOTATIONS_JSON,
+	listMarkDirectory,
 	MARKS_FOLDER,
 	markSelfWrite,
 } from "@/lib/pdf/selection/marks-io";
@@ -60,46 +62,54 @@ async function removeFileIfExists(path: string): Promise<void> {
 
 function parseAnnotationItems(raw: string): AnnotationTransferItem[] {
 	const parsed = JSON.parse(raw) as unknown;
-	if (!Array.isArray(parsed)) return [];
+	if (!Array.isArray(parsed))
+		throw new Error(i18n.t("viewer:pdf.annotationLoadFailed"));
 	return dedupeAnnotationItems(
 		(parsed as AnnotationTransferItem[]).map(reviveAnnotationDates),
 	);
 }
 
+async function readCanonicalAnnotations(
+	paperAbsPath: string,
+	entries: string[],
+): Promise<AnnotationTransferItem[] | null> {
+	if (!entries.includes(MARKS_FOLDER)) return null;
+	const names = await listMarkDirectory(
+		joinVaultPath(paperAbsPath, MARKS_FOLDER),
+	);
+	if (!names.includes(ANNOTATIONS_FILE)) return null;
+	return parseAnnotationItems(
+		await readVaultFile(annotationsPath(paperAbsPath)),
+	);
+}
+
+export async function readStoredAnnotations(
+	paperAbsPath: string,
+): Promise<AnnotationTransferItem[] | null> {
+	if (!paperAbsPath) return null;
+	if (!isTauri()) {
+		const items = memoryStore.get(paperAbsPath);
+		return items ? dedupeAnnotationItems(items) : null;
+	}
+
+	// A successful directory listing distinguishes absence from unreadable data
+	// and also works with remote Vaults. Never fall back past a broken file.
+	const entries = await listMarkDirectory(paperAbsPath);
+	const items = await readCanonicalAnnotations(paperAbsPath, entries);
+	if (items !== null) return items;
+	if (!entries.includes(ANNOTATIONS_FILE)) return null;
+
+	const legacy = legacyAnnotationsPath(paperAbsPath);
+	const legacyItems = parseAnnotationItems(await readVaultFile(legacy));
+	await saveAnnotationItems(paperAbsPath, legacyItems);
+	await removeFileIfExists(legacy);
+	return legacyItems;
+}
+
 export async function loadAnnotationItems(
 	paperAbsPath: string,
 ): Promise<AnnotationTransferItem[]> {
-	if (!paperAbsPath) return [];
-	if (!isTauri()) {
-		return dedupeAnnotationItems(memoryStore.get(paperAbsPath) ?? []);
-	}
-
-	// Prefer marks/; fall back to paper-root and migrate once.
-	try {
-		return parseAnnotationItems(
-			await readVaultFile(annotationsPath(paperAbsPath)),
-		);
-	} catch {
-		// continue to legacy
-	}
-
-	try {
-		const items = parseAnnotationItems(
-			await readVaultFile(legacyAnnotationsPath(paperAbsPath)),
-		);
-		if (items.length) {
-			await saveAnnotationItems(paperAbsPath, items);
-		} else {
-			// Empty file still belongs under marks/ once discovered.
-			const path = annotationsPath(paperAbsPath);
-			markSelfWrite(path);
-			await writeVaultFile(path, `${JSON.stringify([], null, 2)}\n`);
-		}
-		await removeFileIfExists(legacyAnnotationsPath(paperAbsPath));
-		return items;
-	} catch {
-		return [];
-	}
+	return (await readStoredAnnotations(paperAbsPath)) ?? [];
 }
 
 export async function saveAnnotationItems(
@@ -113,29 +123,12 @@ export async function saveAnnotationItems(
 		return;
 	}
 	const path = annotationsPath(paperAbsPath);
+	await readCanonicalAnnotations(
+		paperAbsPath,
+		await listMarkDirectory(paperAbsPath),
+	);
 	markSelfWrite(path);
 	await writeVaultFile(path, `${JSON.stringify(next, null, 2)}\n`);
-	// Drop legacy root copy if present so marks/ is the only location.
-	await removeFileIfExists(legacyAnnotationsPath(paperAbsPath));
-}
-
-export async function hasAnnotationsFile(
-	paperAbsPath: string,
-): Promise<boolean> {
-	if (!paperAbsPath) return false;
-	if (!isTauri()) return memoryStore.has(paperAbsPath);
-	for (const path of [
-		annotationsPath(paperAbsPath),
-		legacyAnnotationsPath(paperAbsPath),
-	]) {
-		try {
-			await readVaultFile(path);
-			return true;
-		} catch {
-			// try next
-		}
-	}
-	return false;
 }
 
 /** Text-markup annotations the reader creates and edits (highlight / underline). */

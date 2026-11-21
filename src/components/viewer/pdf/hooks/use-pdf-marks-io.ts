@@ -28,6 +28,9 @@ import {
 } from "react";
 import { useStableDerived } from "@/components/viewer/pdf/hooks/use-stable-derived";
 import type { PdfViewerProps } from "@/components/viewer/pdf/types";
+import i18n from "@/i18n";
+import { errorText } from "@/lib/core/error";
+import { notifyError } from "@/lib/core/notify";
 import {
 	listPdfVisualTraces,
 	type PdfVisualSessionTrace,
@@ -137,7 +140,6 @@ export function usePdfMarksIo({
 	translatesRef.current = translates;
 	const visualTracesRef = useRef(visualTraces);
 	visualTracesRef.current = visualTraces;
-	const marksLoadedRef = useRef(false);
 
 	const upsertThread = useCallback((thread: PdfAskThread) => {
 		setThreads((prev) => {
@@ -181,86 +183,67 @@ export function usePdfMarksIo({
 		});
 	}, []);
 
-	// Load persisted ask threads + translate records + agent-trace marks once.
+	// First load works for every mounted viewer; subsequent refreshes are
+	// event-driven in the active viewer only.
 	useEffect(() => {
-		if (marksLoadedRef.current || !paperAbsPath) return;
-		marksLoadedRef.current = true;
-		const protectedAtStart = new Set(protectedTranslateIdsRef.current);
-		const recordsAtStart = translatesRef.current;
-		void (async () => {
-			const [ts, trs, traces] = await Promise.all([
-				listPdfAskThreads(paperAbsPath),
-				listPdfTranslates(paperAbsPath),
-				listPdfVisualTraces(paperAbsPath),
-			]);
-			if (ts.length) setThreads(ts);
-			setTranslates((prev) =>
-				mergeTranslateRefresh(
-					prev,
-					trs,
-					new Set([...protectedAtStart, ...protectedTranslateIdsRef.current]),
-					recordsAtStart,
-				),
-			);
-			if (traces.length) {
-				setVisualTraces((prev) => keepUnsavedVisualDrafts(prev, traces));
-			}
-		})();
-	}, [paperAbsPath]);
-
-	// Refresh ask conversation cards + agent-trace pins when this viewer is
-	// active (dock may keep inactive PDFs mounted under keepMounted —
-	// avoid N× listMarkRaw reads). Covers Agent-panel writes that create ask
-	// threads from 「加入对话」 selections while this tab was open.
-	//
-	// Driven by the Vault watcher: listing re-reads every mark file over IPC,
-	// so it must not run on a timer, and watcher echoes of this app's own
-	// marks/ writes are skipped (the writer already updated state). Results
-	// always carry fresh array identity; only commit state when the content
-	// actually changed — otherwise a refresh re-renders the whole viewer and
-	// the pages visibly twitch.
-	const lastMarksPollRef = useRef("{asks:[],traces:[],translates:[]}");
-	useEffect(() => {
-		if (!paperAbsPath || !marksLoadedRef.current || !isActive) return;
+		if (!paperAbsPath) return;
 		let cancelled = false;
+		let latest = 0;
+		let failed = false;
+		const fingerprints = new Map<string, string>();
 		const refresh = () => {
+			const request = ++latest;
 			const protectedAtStart = new Set(protectedTranslateIdsRef.current);
 			const recordsAtStart = translatesRef.current;
-			void Promise.all([
-				listPdfAskThreads(paperAbsPath),
-				listPdfVisualTraces(paperAbsPath),
-				listPdfTranslates(paperAbsPath),
+			void Promise.allSettled([
+				listPdfAskThreads(paperAbsPath, true),
+				listPdfVisualTraces(paperAbsPath, true),
+				listPdfTranslates(paperAbsPath, true),
 			]).then(([asks, traces, translates]) => {
-				if (cancelled) return;
-				let fingerprint: string;
-				try {
-					fingerprint = JSON.stringify({ asks, traces, translates });
-				} catch {
-					fingerprint = "";
-				}
-				if (fingerprint && fingerprint === lastMarksPollRef.current) {
-					return;
-				}
-				lastMarksPollRef.current = fingerprint;
-				setThreads(asks);
-				setVisualTraces((prev) => keepUnsavedVisualDrafts(prev, traces));
-				setTranslates((prev) => {
-					const protectedIds = new Set([
-						...protectedAtStart,
-						...protectedTranslateIdsRef.current,
-					]);
-					return mergeTranslateRefresh(
-						prev,
-						translates,
-						protectedIds,
-						recordsAtStart,
+				if (cancelled || request !== latest) return;
+				const changed = (kind: string, value: unknown) => {
+					const next = JSON.stringify(value);
+					if (next === fingerprints.get(kind)) return false;
+					fingerprints.set(kind, next);
+					return true;
+				};
+				if (asks.status === "fulfilled" && changed("asks", asks.value))
+					setThreads(asks.value);
+				if (traces.status === "fulfilled" && changed("traces", traces.value))
+					setVisualTraces((prev) =>
+						keepUnsavedVisualDrafts(prev, traces.value),
 					);
-				});
+				if (
+					translates.status === "fulfilled" &&
+					changed("translates", translates.value)
+				) {
+					setTranslates((prev) =>
+						mergeTranslateRefresh(
+							prev,
+							translates.value,
+							new Set([
+								...protectedAtStart,
+								...protectedTranslateIdsRef.current,
+							]),
+							recordsAtStart,
+						),
+					);
+				}
+				const rejection = [asks, traces, translates].find(
+					(entry) => entry.status === "rejected",
+				);
+				if (rejection && !failed)
+					notifyError(i18n.t("viewer:pdf.marksLoadFailed"), {
+						description: errorText(rejection.reason),
+					});
+				failed = !!rejection;
 			});
 		};
-		// Immediate refresh on become-active (covers Agent multi-turn writes
-		// while this tab was backgrounded).
 		refresh();
+		if (!isActive)
+			return () => {
+				cancelled = true;
+			};
 		const onFocus = () => refresh();
 		window.addEventListener("focus", onFocus);
 

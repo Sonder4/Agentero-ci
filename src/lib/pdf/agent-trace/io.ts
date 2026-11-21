@@ -409,8 +409,9 @@ export async function reconcileOrphanRunningVisualTraces(
 /** List marks and fold orphaned `running` pins into `failed` when safe. */
 export async function listPdfVisualTraces(
 	paperAbsPath: string,
+	strict = false,
 ): Promise<PdfVisualSessionTrace[]> {
-	const traces = await store.list(paperAbsPath);
+	const traces = await store.list(paperAbsPath, strict);
 	return reconcileOrphanRunningVisualTraces(paperAbsPath, traces);
 }
 

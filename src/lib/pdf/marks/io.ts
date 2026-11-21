@@ -31,14 +31,14 @@ export function createMarkStore<T extends { id: string }>(
 		return b;
 	}
 
-	async function list(paperAbsPath: string): Promise<T[]> {
+	async function list(paperAbsPath: string, strict = false): Promise<T[]> {
 		if (!paperAbsPath) return [];
 		if (!isTauri()) {
 			if (opts.noMemory) return [];
 			return Array.from(memoryBucket(paperAbsPath).values()).sort(opts.sort);
 		}
 		const items: T[] = [];
-		for (const raw of await listMarkRaw(paperAbsPath)) {
+		for (const raw of await listMarkRaw(paperAbsPath, strict)) {
 			const parsed = opts.parse(raw);
 			if (parsed) items.push(parsed);
 		}

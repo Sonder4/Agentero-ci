@@ -51,11 +51,10 @@ import { planAnnotationItemImport } from "@/lib/pdf/highlight/annotation-items";
 import {
 	ANNOTATIONS_FILE,
 	type HighlightCustom,
-	hasAnnotationsFile,
 	highlightViewFromObject,
 	isLiveAnnotation,
 	isTextMarkupObject,
-	loadAnnotationItems,
+	readStoredAnnotations,
 	saveAnnotationItems,
 } from "@/lib/pdf/highlight/annotation-store";
 import {
@@ -190,20 +189,20 @@ export function usePdfHighlights({
 	>(new Map());
 	const highlightsRef = useRef(highlights);
 	highlightsRef.current = highlights;
-	const importedRef = useRef(false);
+	const loadedDocumentRef = useRef<string | null>(null);
 	const importingRef = useRef(false);
 	const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	const deleteQueueRef = useRef<ReturnType<
 		typeof createAnnotationDeleteQueue
 	> | null>(null);
 	const initialImportDoneRef = useRef(false);
-	const pendingPeerEventsRef = useRef<
-		Exclude<AnnotationEvent, { type: "loaded" }>[]
-	>([]);
+	const pendingPeerEventsRef = useRef(
+		new Map<string, Exclude<AnnotationEvent, { type: "loaded" }>>(),
+	);
 	const applyPeerEvent = useCallback(
 		(event: Exclude<AnnotationEvent, { type: "loaded" }>) => {
 			if (!initialImportDoneRef.current) {
-				pendingPeerEventsRef.current.push(event);
+				pendingPeerEventsRef.current.set(event.annotation.id, event);
 				return;
 			}
 			const scope = annotationCap?.forDocument(docId);
@@ -326,7 +325,8 @@ export function usePdfHighlights({
 	}, [rebuildHighlights]);
 
 	const persistAnnotations = useCallback(() => {
-		if (!paperAbsPath || !annotationCap) return;
+		if (!paperAbsPath || !annotationCap || loadedDocumentRef.current !== docId)
+			return;
 		// Capture while this document still exists, including an unmount flush.
 		const snapshot = annotationCap
 			.forDocument(docId)
@@ -340,7 +340,12 @@ export function usePdfHighlights({
 	/** Deletions bypass the normal debounce. */
 	const scheduleSave = useCallback(
 		(immediate = false) => {
-			if (!paperAbsPath || !annotationCap) return;
+			if (
+				!paperAbsPath ||
+				!annotationCap ||
+				loadedDocumentRef.current !== docId
+			)
+				return;
 			if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
 			saveTimerRef.current = setTimeout(
 				() => {
@@ -350,7 +355,7 @@ export function usePdfHighlights({
 				immediate ? 0 : HIGHLIGHT_SAVE_DEBOUNCE_MS,
 			);
 		},
-		[paperAbsPath, annotationCap, persistAnnotations],
+		[paperAbsPath, annotationCap, docId, persistAnnotations],
 	);
 	useLayoutEffect(
 		() => () => {
@@ -372,7 +377,8 @@ export function usePdfHighlights({
 				!event.committed &&
 				!importingRef.current
 			) {
-				if (paperAbsPath) publishAnnotationMutation(paperAbsPath, event);
+				if (paperAbsPath && loadedDocumentRef.current === docId)
+					publishAnnotationMutation(paperAbsPath, event);
 				scheduleSave(event.type === "delete");
 			}
 		});
@@ -388,31 +394,38 @@ export function usePdfHighlights({
 	]);
 
 	useEffect(() => {
-		if (importedRef.current || !annotationCap || !docCap || totalPages <= 0)
-			return;
-		importedRef.current = true;
-		void (async () => {
-			const scope = annotationCap.forDocument(docId);
-			let items: AnnotationTransferItem[] = paperAbsPath
-				? await loadAnnotationItems(paperAbsPath)
-				: [];
-			if (
-				paperAbsPath &&
-				!items.length &&
-				!(await hasAnnotationsFile(paperAbsPath))
-			) {
-				const doc = docCap.getDocument(docId);
-				const migrated = await migrateHighlightMarks(
-					paperAbsPath,
-					(pageIndex) => doc?.pages[pageIndex]?.size ?? null,
-				);
-				if (migrated.length) {
-					items = migrated;
-					await saveAnnotationItems(paperAbsPath, migrated);
-				}
+		if (!annotationCap || !docCap || totalPages <= 0) return;
+		let cancelled = false;
+		let failed = false;
+		let refreshing = false;
+		let refreshAgain = false;
+		let burstTimer: number | null = null;
+
+		const refresh = async () => {
+			if (refreshing) {
+				refreshAgain = true;
+				return;
 			}
-			if (items.length) {
-				importingRef.current = true;
+			refreshing = true;
+			try {
+				let items: AnnotationTransferItem[] = [];
+				if (paperAbsPath) {
+					await enqueueAnnotationSave(paperAbsPath, async () => {
+						const stored = await readStoredAnnotations(paperAbsPath);
+						if (cancelled) return;
+						const doc = docCap.getDocument(docId);
+						items =
+							stored ??
+							(initialImportDoneRef.current
+								? []
+								: await migrateHighlightMarks(
+										paperAbsPath,
+										(pageIndex) => doc?.pages[pageIndex]?.size ?? null,
+									));
+					});
+				}
+				if (cancelled) return;
+				const scope = annotationCap.forDocument(docId);
 				const plan = planAnnotationItemImport(
 					items,
 					scope
@@ -420,6 +433,11 @@ export function usePdfHighlights({
 						.filter(isLiveAnnotation)
 						.map((item) => item.object),
 				);
+				importingRef.current = true;
+				history?.invalidate([
+					...plan.imports.map((item) => item.annotation.id),
+					...plan.annotationOverrides.map((item) => item.id),
+				]);
 				if (plan.imports.length) scope.importAnnotations(plan.imports);
 				if (plan.annotationOverrides.length) {
 					const apply = () => scope.updateAnnotations(plan.annotationOverrides);
@@ -427,15 +445,79 @@ export function usePdfHighlights({
 					else apply();
 					scope.commit();
 				}
-			}
-			setTimeout(() => {
+				// Let plugin import notifications settle before reenabling export.
+				await new Promise<void>((resolve) => setTimeout(resolve, 0));
+				if (cancelled) return;
 				importingRef.current = false;
+				loadedDocumentRef.current = docId;
 				initialImportDoneRef.current = true;
-				for (const event of pendingPeerEventsRef.current.splice(0))
+				failed = false;
+				for (const event of pendingPeerEventsRef.current.values())
 					applyPeerEvent(event);
+				pendingPeerEventsRef.current.clear();
 				rebuildHighlights();
-			}, 0);
-		})();
+			} catch (error) {
+				if (cancelled) return;
+				loadedDocumentRef.current = null;
+				pendingPeerEventsRef.current.clear();
+				if (!failed) {
+					notifyError(i18n.t("viewer:pdf.annotationLoadFailed"), {
+						description: errorText(error),
+					});
+				}
+				failed = true;
+			} finally {
+				if (!cancelled) importingRef.current = false;
+				refreshing = false;
+				if (!cancelled && refreshAgain) {
+					refreshAgain = false;
+					void refresh();
+				}
+			}
+		};
+
+		void refresh();
+		const onFocus = () => {
+			if (failed) void refresh();
+		};
+		window.addEventListener("focus", onFocus);
+		const target = paperAbsPath
+			? normalizePathKey(
+					joinVaultPath(marksDir(paperAbsPath), ANNOTATIONS_FILE),
+				)
+			: null;
+		const legacy = paperAbsPath
+			? normalizePathKey(joinVaultPath(paperAbsPath, ANNOTATIONS_FILE))
+			: null;
+		const dir = paperAbsPath
+			? `${normalizePathKey(marksDir(paperAbsPath))}/`
+			: null;
+		const unsubscribe = listenVaultFileChangedGated((payload) => {
+			if (!target) return;
+			const paths = payload.rename
+				? [...payload.paths, payload.rename.from, payload.rename.to]
+				: payload.paths;
+			const changed = paths.some((path) => {
+				if (isRecentSelfWrite(path)) return false;
+				const key = normalizePathKey(path);
+				return (
+					key === target ||
+					(failed && (key === legacy || (dir && key.startsWith(dir))))
+				);
+			});
+			if (!changed || burstTimer !== null) return;
+			burstTimer = window.setTimeout(() => {
+				burstTimer = null;
+				void refresh();
+			}, ANNOTATIONS_REIMPORT_BURST_MS);
+		});
+		return () => {
+			cancelled = true;
+			importingRef.current = false;
+			if (burstTimer !== null) window.clearTimeout(burstTimer);
+			window.removeEventListener("focus", onFocus);
+			unsubscribe();
+		};
 	}, [
 		annotationCap,
 		docCap,
@@ -444,84 +526,6 @@ export function usePdfHighlights({
 		paperAbsPath,
 		rebuildHighlights,
 		applyPeerEvent,
-		history,
-	]);
-
-	// The CLI/Agent appends highlights straight into `marks/annotations.json`
-	// (`agentero mark add --kind highlight`). The import above runs once per
-	// mount, so without this an open viewer would neither show those highlights
-	// nor keep them: its next debounced export would overwrite the file.
-	useEffect(() => {
-		if (!paperAbsPath || !annotationCap || totalPages <= 0) return;
-		const target = normalizePathKey(
-			joinVaultPath(marksDir(paperAbsPath), ANNOTATIONS_FILE),
-		);
-		let cancelled = false;
-		let burstTimer: number | null = null;
-
-		const schedule = () => {
-			if (burstTimer !== null) return;
-			burstTimer = window.setTimeout(() => {
-				burstTimer = null;
-				void reimport();
-			}, ANNOTATIONS_REIMPORT_BURST_MS);
-		};
-
-		const reimport = async () => {
-			// The mount-time import is still filling the scope; comparing against
-			// it now would re-import the same ids. Wait one burst and retry.
-			if (importingRef.current) {
-				schedule();
-				return;
-			}
-			const scope = annotationCap.forDocument(docId);
-			const existing = scope
-				.getAnnotations()
-				.filter(isLiveAnnotation)
-				.map((a) => a.object);
-			const items = await loadAnnotationItems(paperAbsPath);
-			if (cancelled) return;
-			const plan = planAnnotationItemImport(items, existing);
-			if (!plan.imports.length && !plan.annotationOverrides.length) return;
-			importingRef.current = true;
-			history?.invalidate([
-				...plan.imports.map((item) => item.annotation.id),
-				...plan.annotationOverrides.map((item) => item.id),
-			]);
-			if (plan.imports.length) scope.importAnnotations(plan.imports);
-			if (plan.annotationOverrides.length) {
-				const apply = () => scope.updateAnnotations(plan.annotationOverrides);
-				if (history) history.withoutRecording(apply);
-				else apply();
-				scope.commit();
-			}
-			setTimeout(() => {
-				importingRef.current = false;
-				rebuildHighlights();
-			}, 0);
-		};
-
-		const unsub = listenVaultFileChangedGated((payload) => {
-			const paths = [...payload.paths];
-			if (payload.rename) {
-				paths.push(payload.rename.from, payload.rename.to);
-			}
-			const hit = paths.filter((p) => normalizePathKey(p) === target);
-			if (!hit.length) return;
-			if (hit.every((p) => isRecentSelfWrite(p))) return;
-			schedule();
-		});
-		return () => {
-			cancelled = true;
-			if (burstTimer !== null) window.clearTimeout(burstTimer);
-			unsub();
-		};
-	}, [
-		annotationCap,
-		docId,
-		paperAbsPath,
-		totalPages,
-		rebuildHighlights,
 		history,
 	]);
 

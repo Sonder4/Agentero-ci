@@ -6,7 +6,7 @@ import type {
 } from "@embedpdf/models";
 import { PdfAnnotationSubtype } from "@embedpdf/models";
 import type { AnnotationTransferItem } from "@embedpdf/plugin-annotation/react";
-
+import { saveAnnotationItems } from "@/lib/pdf/highlight/annotation-store";
 import { listPdfHighlights } from "@/lib/pdf/highlight/io";
 import {
 	HIGHLIGHT_HEX,
@@ -30,7 +30,7 @@ export async function migrateHighlightMarks(
 	paperAbsPath: string,
 	pageSizePoints: (pageIndex: number) => Size | null,
 ): Promise<AnnotationTransferItem[]> {
-	const olds = await listPdfHighlights(paperAbsPath);
+	const olds = await listPdfHighlights(paperAbsPath, true);
 	if (!olds.length) return [];
 
 	const items: AnnotationTransferItem[] = [];
@@ -64,6 +64,7 @@ export async function migrateHighlightMarks(
 		migratedIds.push(h.id);
 	}
 
+	if (items.length) await saveAnnotationItems(paperAbsPath, items);
 	for (const id of migratedIds) {
 		try {
 			await deleteMarkFile(paperAbsPath, id);
