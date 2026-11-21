@@ -106,7 +106,7 @@ export function isSyncProgressPhase(phase: string): phase is SyncPhase {
 }
 
 export const emptySyncConfig = (
-	backend: SyncBackendKind = "agentero",
+	backend: SyncBackendKind = "s3",
 ): SyncBackendConfig => ({
 	backend,
 	endpoint: "",
@@ -211,21 +211,4 @@ export async function syncDisconnect(vaultPath: string): Promise<void> {
 
 export function syncNow(vaultPath: string): Promise<SyncOutcome> {
 	return callApiResult(() => commands.syncNow({ vaultPath }));
-}
-
-export type SyncCloudUsage = {
-	signedIn: boolean;
-	used: number;
-	limit: number;
-	tier: string;
-	planKey: string;
-};
-
-export function syncCloudUsage(
-	subject: "user" | "organization",
-	orgId?: string,
-): Promise<SyncCloudUsage> {
-	return callApiResult(() =>
-		commands.syncCloudUsage({ subject, orgId: orgId ?? null }),
-	);
 }

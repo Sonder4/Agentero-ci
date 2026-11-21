@@ -5,7 +5,6 @@
 		"remoteContextHint": "当前 Vault 在 {{host}}（{{path}}）。外观等仍为本机偏好；打开 Agent 分区时会对远端主机做探测。"
 	},
 	"nav": {
-		"account": "账号与团队",
 		"general": "通用",
 		"activity": "使用情况",
 		"appearance": "外观",
@@ -431,10 +430,7 @@
 				"ok": "可用",
 				"failed": "不可达",
 				"unconfigured": "未配置"
-			},
-			"agentero": "Agentero Embedding",
-			"agenteroHint": "使用 Agentero 账户的 API Key。免费额度及超额开关由账户控制；切换会清空旧服务的密钥。",
-			"useAgentero": "使用 Agentero"
+			}
 		},
 		"desktopOnly": "Agent 注册表需要桌面应用。",
 		"desktopHint": "运行 `pnpm tauri dev` 以扫描本机上的 Agent。",
@@ -591,7 +587,6 @@
 		"title": "翻译",
 		"provider": {
 			"label": "默认服务",
-			"agentero": "Agentero 云端（个人账户）",
 			"cnki": "CNKI 翻译助手",
 			"huoshanweb": "火山翻译 Web",
 			"tencenttransmart": "腾讯交互翻译",
@@ -1143,7 +1138,8 @@
 		"vault": "资料库",
 		"vaultPlaceholder": "选择资料库",
 		"backend": "同步方式",
-		"backendAgentero": "当前账号",
+		"backendRemovedName": "Agentero 账户同步",
+		"backendRemoved": "Agentero 账户同步已移除。断开此后端后，可以选择其他后端。",
 		"backendS3": "对象存储",
 		"backendWebdav": "WebDAV",
 		"backendGit": "Git",
@@ -1190,11 +1186,6 @@
 			"finalize": "正在收尾…"
 		},
 		"connect": "连接",
-		"useAccount": "使用当前账号同步",
-		"space": "同步到",
-		"spacePersonal": "个人空间",
-		"spaceTeam": "当前团队",
-		"noTeam": "先在账号里进入一个团队，才能同步到团队空间。",
 		"save": "保存",
 		"autoSync": "自动同步",
 		"interval": "同步间隔",
@@ -1205,13 +1196,6 @@
 		"scopePdf": "PDF 文件",
 		"scopeSource": "LaTeX 源码",
 		"scopeAttachments": "支撑材料"
-	},
-	"cloudSync": {
-		"title": "云同步",
-		"usedOf": "已用 {{used}} / {{limit}}",
-		"unlimited": "不限",
-		"signInRequired": "登录后可查看云同步容量。",
-		"notIncluded": "当前套餐不包含云同步。"
 	},
 	"plugins": {
 		"install": "从文件夹安装…",

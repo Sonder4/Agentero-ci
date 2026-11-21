@@ -2,7 +2,7 @@
 
 `agentero` 是一个内置 provider id：凭证在**构建期**编入 Host，使用它不需要填任何 baseUrl / API Key / model，设置面板也不为它渲染凭证卡片。注入 key 的构建中，新装 Host 默认使用内置翻译与 embedding；正文解析始终默认使用 `local`。
 
-> **前端可见性**：官方账户移除后，`accountSurfaceEnabled`（`src/features/account/visibility.ts`）固定为 `false`。翻译供应商列表过滤掉 `agentero`（`src/lib/translate/services/index.ts`），Embedding 设置不再显示 Agentero 预设（`agent-embedding-block.tsx`），已保存的 `translate.provider = "agentero"` 在打开翻译设置时回退到默认免费引擎（`translate-pane.tsx`）。Host 侧的构建期凭证、`builtin_provider_status` 与默认值逻辑保持不变，下文描述的是 Host 行为。
+> 官方账户、账户翻译和账户 Embedding 预设已移除。WebView 加载存有旧 `translate.provider = "agentero"` 的设置时，使用默认免费引擎。下文描述由构建凭证驱动的 Host 能力。
 
 三个消费方：
 
@@ -100,8 +100,6 @@
 - 构建里没有 key 时，`src-tauri/src/features/translate/commands.rs` 在任何 `.await` 之前返回 `AppError::domain(ERR_NO_BUILTIN_KEY)`，标记为 `translate.no_builtin_key`，而不是放一个无法认证的请求出去。
 - `finish_reason` 为 `length` / `max_tokens` / `content_filter` 时报「translation incomplete…retry with a smaller chunk」。
 - `"agentero"` 刻意**不在** Rust 的 `FREE_PROVIDERS` 里（CLI `cli/src/commands/translate.rs` 用它门控 `--provider`，随后以 `api_key: None` 调用，会让 CLI 接受一个无法认证的 provider），也**不在** `COMMERCIAL_PROVIDERS` 里（那个列表驱动 WebView 凭证卡片，内置 provider 不该渲染任何卡片）。
-- **两份「免费 provider」清单刻意不一致**：前端 `FreeTranslateProviderId` / `FREE_MT_PROVIDER_IDS`（`src/lib/translate/types.ts`）**含** `agentero`——这样它复用无 key 引擎的管线、且因为不是 `CommercialTranslateProviderId`，`translate-pane.tsx` 不会为它渲染凭证卡片，`COMMERCIAL_MT_DEFAULT_BASE_URLS` / `COMMERCIAL_MT_DOCS_URLS` 这两个 total Record 也不需要新条目。Rust 的 `FREE_PROVIDERS` **不含**它（理由见上条）。改任何一份清单时都要意识到另一份是反的。
-- 探测：`probeFreeMtProviders` 现已含 `agentero`（探测会真的发一次 "Hi" 翻译请求，顺带验证网关连通）；`translate-pane.tsx` 在 `builtin_provider_status` 报不可用时跳过它——那时探测只会确定性复现 no-key 错误。
 
 ### 支持语言（Hunyuan-MT，37）
 

@@ -65,7 +65,6 @@ nav:
       - 命令面板: frontend/command-palette.md
       - 翻译: frontend/translate.md
       - 设置与主题: frontend/settings.md
-      - 云端能力（已停用）: frontend/cloud-capabilities.md
       - 新手引导: frontend/onboarding.md
       - 组件约定: frontend/components.md
 

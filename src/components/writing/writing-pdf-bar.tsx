@@ -25,7 +25,6 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { WritingProblems } from "@/components/writing/writing-problems";
-import { accountSurfaceEnabled } from "@/features/account/visibility";
 import {
 	useWritingProject,
 	useWritingProjectRelative,
@@ -69,8 +68,6 @@ import {
 	resumeWritingAutoSync,
 	uploadWritingProject,
 } from "@/lib/writing/upload";
-import { useWritingCloudContext } from "./writing-cloud-context";
-import { WritingCloudControl } from "./writing-cloud-controls";
 
 export function WritingPdfBar({
 	rootFile,
@@ -84,8 +81,6 @@ export function WritingPdfBar({
 	manageSync?: boolean;
 }) {
 	const { t } = useTranslation(["sidebar", "latexBuild"]);
-	const cloud = useWritingCloudContext();
-	manageSync = manageSync && !cloud.session;
 	const key = normalizePath(rootFile);
 	const engines = useStore(texCompileStore, (state) => state.engines);
 	const enginesLoading = useStore(
@@ -405,15 +400,6 @@ export function WritingPdfBar({
 				</DropdownMenu>
 			</div>
 			<WritingProblems rootFile={rootFile} />
-			{accountSurfaceEnabled &&
-			vault &&
-			manifest.status === "ready" &&
-			manifest.project ? (
-				<WritingCloudControl
-					vault={vault}
-					directory={manifest.project.directory}
-				/>
-			) : null}
 			<span className="min-w-0 flex-1" />
 			<Button
 				type="button"
@@ -431,49 +417,47 @@ export function WritingPdfBar({
 				<History aria-hidden />
 				{t("writing.history")}
 			</Button>
-			{!cloud.session && (
-				<Button
-					type="button"
-					variant="ghost"
-					size="sm"
-					className="shrink-0 text-muted-foreground"
-					aria-label={
-						syncing
-							? t("writing.syncing")
-							: github
-								? t("writing.syncTo", { repo: github.label })
-								: t("writing.sync")
-					}
-					aria-busy={syncing || undefined}
-					disabled={syncing}
-					onClick={syncProject}
-				>
-					{syncing ? (
-						<Loader2 className="animate-spin" aria-hidden />
-					) : (
-						<CloudUpload aria-hidden />
-					)}
-					{/*
-					 * Both labels occupy one grid cell so the button keeps the
-					 * wider "Uploading…" width while idle. Resizing the label
-					 * during the disabled/spinner animation lets WebKit keep the
-					 * previous text painted at its old x for a frame, which reads
-					 * as "UploadUpload" ghosting.
-					 */}
-					<span className="inline-grid">
-						<span
-							className={cn("col-start-1 row-start-1", syncing && "invisible")}
-						>
-							{t("writing.sync")}
-						</span>
-						<span
-							className={cn("col-start-1 row-start-1", !syncing && "invisible")}
-						>
-							{t("writing.syncing")}
-						</span>
+			<Button
+				type="button"
+				variant="ghost"
+				size="sm"
+				className="shrink-0 text-muted-foreground"
+				aria-label={
+					syncing
+						? t("writing.syncing")
+						: github
+							? t("writing.syncTo", { repo: github.label })
+							: t("writing.sync")
+				}
+				aria-busy={syncing || undefined}
+				disabled={syncing}
+				onClick={syncProject}
+			>
+				{syncing ? (
+					<Loader2 className="animate-spin" aria-hidden />
+				) : (
+					<CloudUpload aria-hidden />
+				)}
+				{/*
+				 * Both labels occupy one grid cell so the button keeps the
+				 * wider "Uploading…" width while idle. Resizing the label
+				 * during the disabled/spinner animation lets WebKit keep the
+				 * previous text painted at its old x for a frame, which reads
+				 * as "UploadUpload" ghosting.
+				 */}
+				<span className="inline-grid">
+					<span
+						className={cn("col-start-1 row-start-1", syncing && "invisible")}
+					>
+						{t("writing.sync")}
 					</span>
-				</Button>
-			)}
+					<span
+						className={cn("col-start-1 row-start-1", !syncing && "invisible")}
+					>
+						{t("writing.syncing")}
+					</span>
+				</span>
+			</Button>
 		</div>
 	);
 }

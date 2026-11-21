@@ -2,11 +2,11 @@
 
 桌面端和 CLI 均可在多个设备间同步本地 Vault。对象存储包括支持条件写的 S3 和 WebDAV；Git 后端直接同步工作树和分支。**能连接、上传文件，不代表远端能安全地同步。**
 
-> Agentero Cloud 后端：core 仍保留 `SyncBackendKind::Agentero` 变体，但官方登录已移除，桌面端为其附加登录令牌的代码一并删除，设置页按 `accountSurfaceEnabled`（固定 `false`）隐藏该选项。当前构建中不可用，见 [../frontend/cloud-capabilities.md](../frontend/cloud-capabilities.md)。
+> 桌面设置已移除 Agentero 账户同步。旧配置仍可读取与断开。core 和 CLI 保留使用显式环境凭证的后端，以及对已有写作协作数据库的保护。
 
 引擎位于 `crates/agentero-core/src/features/sync/`（Tauri 无关），桌面端与 headless CLI 共用同一份实现——冲突处理、失败恢复与请求预算语义完全一致；CLI 侧见 `agentero sync`（[cli.md](cli.md)）。桌面端仅在 `src-tauri/src/integration/sync/` 叠加 IPC 命令与调度。
 
-S3 / WebDAV（以及当前不可用的 Agentero Cloud）共用同一套状态化同步协议（内容寻址 blob + 不可变 manifest + CAS `HEAD`），契约收敛在 `store.rs` 的 `RemoteStore` trait，`SyncStore` 枚举按配置选择实现，引擎对具体后端无感知。新增这类后端 = 新客户端模块实现 trait + 枚举一个变体。Git 不走 blob store：远端就是 Git 仓库本身，见「Git 后端」。设置页可切换后端；已配置的 Vault 锁定后端选择，需先解绑再切换（换后端即指向另一个远端 store）。Azure Blob、百度网盘等无 S3 / WebDAV 对应凭据模型的服务仍不能接入。
+S3 / WebDAV（以及使用显式凭证的 CLI Agentero Cloud 后端）共用同一套状态化同步协议（内容寻址 blob + 不可变 manifest + CAS `HEAD`），契约收敛在 `store.rs` 的 `RemoteStore` trait，`SyncStore` 枚举按配置选择实现，引擎对具体后端无感知。新增这类后端 = 新客户端模块实现 trait + 枚举一个变体。Git 不走 blob store：远端就是 Git 仓库本身，见「Git 后端」。设置页可切换后端；已配置的 Vault 锁定后端选择，需先解绑再切换（换后端即指向另一个远端 store）。Azure Blob、百度网盘等无 S3 / WebDAV 对应凭据模型的服务仍不能接入。
 
 ## 模块
 

@@ -39,8 +39,8 @@ describe("built-in provider id", () => {
 		expect(BUILTIN_PROVIDER_ID).toBe("agentero");
 	});
 
-	it("is a free-MT translate provider and a parser backend", () => {
-		expect(FREE_MT_PROVIDER_IDS).toContain("agentero");
+	it("is a parser backend and is excluded from the free-MT registry", () => {
+		expect(FREE_MT_PROVIDER_IDS).not.toContain("agentero");
 		expect(PARSER_BACKENDS).toContain("agentero");
 		expect(LAYOUT_PROVIDER_IDS).toContain("agentero");
 	});
@@ -64,13 +64,9 @@ describe("built-in provider id", () => {
 		expect(paddle && isProviderCardConfigurable(paddle)).toBe(true);
 	});
 
-	it("is included in free-MT availability probes (false without a Host key)", async () => {
+	it("probes free providers without including account translation", async () => {
 		const result = await probeFreeMtProviders();
-		// Browser dev has no Host, so the built-in resolves to false without a
-		// request — but it still occupies its slot in the batch (the pane itself
-		// hides the dot when `builtin_provider_status` reports unavailable).
-		expect("agentero" in result).toBe(true);
-		expect(result.agentero).toBe(false);
+		expect(result).not.toHaveProperty("agentero");
 		expect(result.tencenttransmart).toBe(false);
 	});
 });

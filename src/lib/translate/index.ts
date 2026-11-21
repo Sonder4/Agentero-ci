@@ -45,7 +45,7 @@ export {
 	isCommercialTranslateProvider,
 	isFreeMtProvider,
 	isTranslateProviderId,
-	listSelectableProviders,
+	TRANSLATE_SERVICES,
 } from "@/lib/translate/services";
 export {
 	COMMERCIAL_MT_DEFAULT_BASE_URLS,

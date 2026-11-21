@@ -13,10 +13,10 @@ import {
 	isTranslateProviderId,
 	isTranslateTransportError,
 	langsFromSettings,
-	listSelectableProviders,
 	resolveTargetLangCode,
 	resolveTargetLangName,
 	resolveTranslateAgent,
+	TRANSLATE_SERVICES,
 	targetLangDisplayName,
 	translateSystemTemplateIssue,
 	translateUserTemplateIssue,
@@ -98,7 +98,7 @@ describe("translate services registry", () => {
 	});
 
 	it("settings list includes free engines, commercial BYOK engines, and agent", () => {
-		const ids = listSelectableProviders().map((s) => s.id);
+		const ids = TRANSLATE_SERVICES.map((s) => s.id);
 		expect(ids).toContain("tencenttransmart");
 		expect(ids).toContain("huoshanweb");
 		expect(ids).toContain("cnki");

@@ -5,7 +5,6 @@
 		"remoteContextHint": "Vault is open on {{host}} ({{path}}). App appearance stays local; Agent catalog below probes that host when you open the Agent section."
 	},
 	"nav": {
-		"account": "Account and teams",
 		"general": "General",
 		"activity": "Activity",
 		"appearance": "Appearance",
@@ -431,10 +430,7 @@
 				"ok": "Reachable",
 				"failed": "Unreachable",
 				"unconfigured": "Not configured"
-			},
-			"agentero": "Agentero Embedding",
-			"agenteroHint": "Use an Agentero account API key. Account allowances and overage settings apply. Switching clears the previous provider key.",
-			"useAgentero": "Use Agentero"
+			}
 		},
 		"desktopOnly": "Agent registry requires the desktop app.",
 		"desktopHint": "Run `pnpm tauri dev` to scan agents on this machine.",
@@ -591,7 +587,6 @@
 		"title": "Translate",
 		"provider": {
 			"label": "Default service",
-			"agentero": "Agentero cloud (personal account)",
 			"cnki": "CNKI Translate",
 			"huoshanweb": "Volcengine Web",
 			"tencenttransmart": "Tencent Transmart",
@@ -1143,7 +1138,8 @@
 		"vault": "Vault",
 		"vaultPlaceholder": "Choose a vault",
 		"backend": "Sync method",
-		"backendAgentero": "This account",
+		"backendRemovedName": "Agentero account sync",
+		"backendRemoved": "Agentero account sync has been removed. Disconnect this backend to choose another one.",
 		"backendS3": "Object storage",
 		"backendWebdav": "WebDAV",
 		"backendGit": "Git",
@@ -1190,11 +1186,6 @@
 			"finalize": "Finalizing…"
 		},
 		"connect": "Connect",
-		"useAccount": "Sync with this account",
-		"space": "Sync to",
-		"spacePersonal": "Personal space",
-		"spaceTeam": "Current team",
-		"noTeam": "Open a team from your account before syncing to a team space.",
 		"save": "Save",
 		"autoSync": "Auto sync",
 		"interval": "Sync interval",
@@ -1205,13 +1196,6 @@
 		"scopePdf": "PDFs",
 		"scopeSource": "LaTeX sources",
 		"scopeAttachments": "Attachments"
-	},
-	"cloudSync": {
-		"title": "Cloud sync",
-		"usedOf": "{{used}} used / {{limit}}",
-		"unlimited": "Unlimited",
-		"signInRequired": "Sign in to see your cloud sync capacity.",
-		"notIncluded": "The current plan does not include cloud sync."
 	},
 	"plugins": {
 		"install": "Install from folder…",

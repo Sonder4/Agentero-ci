@@ -1,5 +1,4 @@
 import { Channel } from "@tauri-apps/api/core";
-import { hostedTranslation } from "@/features/capabilities/data";
 import { commands } from "@/lib/core/bindings";
 import { isTauri } from "@/lib/core/tauri";
 
@@ -33,15 +32,6 @@ export async function invokeTranslateText(args: {
 	/** Receives each increment when the provider streams; others call it never. */
 	onDelta?: (chunk: string) => void;
 }): Promise<string> {
-	if (args.provider === "agentero") {
-		const text = await hostedTranslation(
-			args.text,
-			args.sourceLang,
-			args.targetLang,
-		);
-		args.onDelta?.(text);
-		return text;
-	}
 	if (!isTauri()) {
 		throw new Error("Free translation requires the Tauri desktop app.");
 	}

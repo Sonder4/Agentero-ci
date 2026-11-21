@@ -166,7 +166,6 @@ OpenAI 兼容服务卡片把「并发数」和「额外参数」收在默认折�
 - 批量 payload 里每个 `[[n]]` 是一句。规则在 system：保留全部标记、顺序和编号，不跨编号搬运、不合并、不丢弃。一个编号内部可以调整语序，也可以把一句原文拆成多句译文。
 - OpenAI-compatible 的 `temperature` 用 0.2（0.0 的直译感太强）。能关 thinking 才关，而且只对认得出的模型：`o1`/`o3`/`o4` 发 `reasoning_effort: low` 并不发 temperature；`gpt-5`（非 `*-chat*`）发 `reasoning_effort: none` 并不发 temperature；混合思考型号使用对应关闭参数，强制思考的新型号只降低 effort，不发送不支持的 disabled。Kimi 新系列和 MiniMax M3 系列不发送 temperature。具体型号及例外见配置说明。填写额外 JSON 后这些自动参数全部被用户配置替代。Agent 翻译把会话 effort 调到已声明档位里最低的一档（有 `none` 就用 `none`）。
 
-**内置 provider（`agentero`）不适用以上整套约束**：`tencent/Hunyuan-MT-7B` 是专用 MT 模型而非 instruct 模型，只认它自己的单行模板，Host 改发单条 user message（无 system message），并且**不把 `[[n]]` 喂给模型**——批量对齐依赖指令遵循，对它无效，所以标记由 Host 拆分、逐句请求、按序重组。`⟦n⟧` 占位符仍由前端 `mask.ts` 插入并原样透传。详见 [../backend/builtin-provider.md](../backend/builtin-provider.md) §翻译：Hunyuan-MT。
 
 **自定义提示词**：`customSystem` 非空时优先于旧的 `customPrompt`，都不再整段替换 system。引擎规则始终保留。多行或含占位符的系统内容替换学术风格块（`DEFAULT_TRANSLATE_PROMPT_TEMPLATE`）；一行短口语只作为附加偏好，默认风格和 few-shot 仍在。`customUser` 含 `{{text}}` 时成为 user 消息，否则原文仍用引号包裹。`[[n]]` 批量规则仍由应用写进 system。Host 与前端一起改。
 
@@ -174,7 +173,6 @@ OpenAI 兼容服务卡片把「并发数」和「额外参数」收在默认折�
 
 | 类型 | 路径 |
 |---|---|
-| 内置 provider | Host `translate_text`（`agentero` → Hunyuan-MT，构建期凭证，无凭证卡片） |
 | 免费 MT | Host `translate_text`（腾讯交互翻译 / Index-Translate / 火山 Web / 知网 CNKI） |
 | 商用 BYOK | Host `translate_text`（DeepL / Azure / Google Cloud / OpenAI-compatible） |
 | Agent | `agent_run_once` + 翻译 prompt；同一篇文献的多次翻译复用同一个 ACP provider session |

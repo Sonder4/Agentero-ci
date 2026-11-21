@@ -29,11 +29,6 @@ export function usePdfSyncTex(options: {
 	pdfPath?: string | null;
 	rootPath?: string | null;
 	scope?: "writing";
-	cloudSyncBackward?: (
-		page: number,
-		x: number,
-		y: number,
-	) => Promise<{ path: string; line: number; column: number } | null>;
 	isActive: boolean;
 	hostRef: RefObject<HTMLDivElement | null>;
 	navigate(region: PdfNavigationRegion): void;
@@ -57,12 +52,7 @@ export function usePdfSyncTex(options: {
 		(index: number, point: { x: number; y: number }) => {
 			if (!pdfPath) return false;
 			const request = ++navigation.current;
-			const cloud = latest.current.cloudSyncBackward;
-			void (
-				cloud
-					? cloud(index + 1, point.x, point.y)
-					: syncTexBackward(pdfPath, index + 1, point.x, point.y)
-			)
+			void syncTexBackward(pdfPath, index + 1, point.x, point.y)
 				.then((source) => {
 					if (request !== navigation.current) return;
 					if (source)

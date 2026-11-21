@@ -136,8 +136,4 @@
 - 已迁移的写作、Agent、Zotero 和显示偏好与 CLI 共享 `settings.json` 的 `frontendPreferences`；首次迁移保留已存在的共享值。详见 [CLI 配置](../backend/cli.md#应用设置settings)。
 - 更新服务：`src/lib/update/`
 
-## 账户入口
-
-本定制构建已移除官方账户页与 tauri-plugin-better-auth Host 插件：设置侧栏不再有「账户」分区，Vault 欢迎页也不再显示账户入口。账号相关的云端写作与托管能力随账户界面一起下线，本地 Vault、Agent、翻译与同步（S3/WebDAV/Git）不受影响。
-
-src/features/account/visibility.ts 的 accountSurfaceEnabled 固定为 false，因此账户分区与欢迎页入口始终不渲染；插件入口由 pluginsSurfaceEnabled 控制（默认开启，开发插件入口只在显式开启时出现）。
+官方账户、云写作和账户关联的托管能力已移除。设置继续提供本地 Vault、Agent、翻译与 S3、WebDAV、Git 同步。

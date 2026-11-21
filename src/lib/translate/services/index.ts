@@ -1,4 +1,3 @@
-import { accountSurfaceEnabled } from "@/features/account/visibility";
 import { AgentTranslateService } from "@/lib/translate/services/agent";
 import { makeCommercialMtService } from "@/lib/translate/services/commercial";
 import { makeFreeMtService } from "@/lib/translate/services/free";
@@ -43,11 +42,4 @@ export function isCommercialTranslateProvider(
 
 export function isFreeMtProvider(id: string): id is FreeTranslateProviderId {
 	return (FREE_MT_PROVIDER_IDS as string[]).includes(id);
-}
-
-/** Providers shown in Settings Select. */
-export function listSelectableProviders(): TranslateService[] {
-	return TRANSLATE_SERVICES.filter(
-		(service) => service.id !== "agentero" || accountSurfaceEnabled,
-	);
 }

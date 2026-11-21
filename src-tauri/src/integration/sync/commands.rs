@@ -237,45 +237,6 @@ pub async fn sync_now(
     }
 }
 
-#[derive(Debug, Deserialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncCloudUsageArgs {
-    /// `user` or `organization`.
-    pub subject: String,
-    pub org_id: Option<String>,
-}
-
-#[derive(Debug, Serialize, specta::Type)]
-#[serde(rename_all = "camelCase")]
-pub struct SyncCloudUsage {
-    pub signed_in: bool,
-    pub used: u64,
-    pub limit: i64,
-    pub tier: String,
-    pub plan_key: String,
-}
-
-fn signed_out_usage() -> SyncCloudUsage {
-    SyncCloudUsage {
-        signed_in: false,
-        used: 0,
-        limit: 0,
-        tier: String::new(),
-        plan_key: String::new(),
-    }
-}
-
-/// Used and included bytes for the signed-in personal or team space.
-/// The bearer stays in the keychain; the webview only sees the numbers.
-#[tauri::command]
-#[specta::specta]
-pub async fn sync_cloud_usage(
-    _app: AppHandle,
-    _args: SyncCloudUsageArgs,
-) -> Result<ApiResult<SyncCloudUsage>, String> {
-    Ok(ApiResult::ok(signed_out_usage()))
-}
-
 fn emit_state(app: &AppHandle, vault_path: &str, status: &str, error: Option<String>) {
     let _ = app.emit(
         "sync:state",

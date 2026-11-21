@@ -853,11 +853,6 @@ export const commands = {
 	syncNow: (args: SyncVaultArgs) => typedError<ApiResult<SyncOutcome>, string>(__TAURI_INVOKE("sync_now", { args })),
 	syncScopeSizes: (args: SyncVaultArgs) => typedError<ApiResult<SyncScopeSizes>, string>(__TAURI_INVOKE("sync_scope_sizes", { args })),
 	/**
-	 *  Used and included bytes for the signed-in personal or team space.
-	 *  The bearer stays in the keychain; the webview only sees the numbers.
-	 */
-	syncCloudUsage: (args: SyncCloudUsageArgs) => typedError<ApiResult<SyncCloudUsage>, string>(__TAURI_INVOKE("sync_cloud_usage", { args })),
-	/**
 	 *  Start (or restart) watching `vault_path` for this window. Emits
 	 *  `vault:file-changed` to this window when files change on disk.
 	 */
@@ -1007,7 +1002,6 @@ export const commands = {
 	jobLatexCompileEnqueue: (args: JobLatexCompileEnqueueArgs) => typedError<ApiResult<JobSnapshot>, string>(__TAURI_INVOKE("job_latex_compile_enqueue", { args })),
 	jobJevSmartHighlightsEnqueue: (args: JobEnqueueArgs) => typedError<ApiResult<JobSnapshot>, string>(__TAURI_INVOKE("job_jev_smart_highlights_enqueue", { args })),
 	jevProbeHealth: () => typedError<ApiResult<null>, string>(__TAURI_INVOKE("jev_probe_health")),
-	writingCloudState: (vaultPath: string, projectId: string, checkpoint: string | null) => __TAURI_INVOKE<ApiResult<string | null>>("writing_cloud_state", { vaultPath, projectId, checkpoint }),
 	writingSyncProject: (projectDir: string, remote: string, branch: string) => __TAURI_INVOKE<ApiResult<WritingSyncReport>>("writing_sync_project", { projectDir, remote, branch }),
 	writingGitLog: (projectDir: string) => __TAURI_INVOKE<ApiResult<WritingGitLog>>("writing_git_log", { projectDir }),
 	writingGitDiff: (projectDir: string, commit: string) => __TAURI_INVOKE<ApiResult<WritingGitDiff>>("writing_git_diff", { projectDir, commit }),
@@ -5902,20 +5896,6 @@ export type SyncBackendKind = "s3" | "webdav" | "git" |
  *  is never written to `sync.json`.
  */
 "agentero";
-
-export type SyncCloudUsage = {
-	signedIn: boolean,
-	used: number,
-	limit: number,
-	tier: string,
-	planKey: string,
-};
-
-export type SyncCloudUsageArgs = {
-	/**  `user` or `organization`. */
-	subject: string,
-	orgId: string | null,
-};
 
 export type SyncConfigureArgs = {
 	vaultPath: string,

@@ -46,8 +46,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { accountSurfaceEnabled } from "@/features/account/visibility";
-import { BUILTIN_PROVIDER_ID } from "@/lib/core/builtin";
 import { notifyError } from "@/lib/core/notify";
 import { openExternalUrl } from "@/lib/core/open-external";
 import { hasSecret, isSecretMask, maskSecret } from "@/lib/core/secret-mask";
@@ -73,9 +71,9 @@ import {
 	isCommercialProviderConfigured,
 	isCommercialTranslateProvider,
 	isFreeMtProvider,
-	listSelectableProviders,
 	probeCommercialMtProvider,
 	probeFreeMtProviders,
+	TRANSLATE_SERVICES,
 	translateSystemTemplateIssue,
 	translateUserTemplateIssue,
 } from "@/lib/translate";
@@ -173,11 +171,6 @@ export function TranslatePane({
 			patch({ translate: { ...tr, ...partial } }),
 		[patch, tr],
 	);
-	useEffect(() => {
-		if (!accountSurfaceEnabled && tr.provider === BUILTIN_PROVIDER_ID) {
-			patchTranslate({ provider: DEFAULT_TRANSLATE_SETTINGS.provider });
-		}
-	}, [patchTranslate, tr.provider]);
 	const showAgent = tr.provider === "agent";
 	const getProviderConfig = useCallback(
 		(id: CommercialTranslateProviderId): TranslateProviderConfig =>
@@ -190,7 +183,7 @@ export function TranslatePane({
 	 */
 	const providers = useMemo(
 		() =>
-			listSelectableProviders().filter((s) => {
+			TRANSLATE_SERVICES.filter((s) => {
 				if (!isCommercialTranslateProvider(s.id)) return true;
 				if (tr.provider === s.id) return true;
 				return isCommercialProviderConfigured(s.id, getProviderConfig(s.id));
@@ -253,7 +246,6 @@ export function TranslatePane({
 
 		const initial: FreeMtProbeMap = {};
 		for (const id of FREE_MT_PROVIDER_IDS) {
-			if (id === BUILTIN_PROVIDER_ID) continue;
 			initial[id] = "probing";
 		}
 		setProbeMap(initial);

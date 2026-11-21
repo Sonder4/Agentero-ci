@@ -9,9 +9,6 @@ import { EditorView, keymap } from "@codemirror/view";
 import { basicSetup } from "codemirror";
 import { useTheme } from "next-themes";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { yCollab, yUndoManagerKeymap } from "y-codemirror.next";
-import type { Awareness } from "y-protocols/awareness";
-import type { Text as YText } from "yjs";
 import { useStore } from "zustand";
 import { addSelectionToChat } from "@/components/selection/add-selection-to-chat";
 import {
@@ -115,15 +112,7 @@ function canonicalTexEditor(panelId: string): boolean {
 	return !legacyPaneKindFromId(panelId);
 }
 
-type CollaborativeEditor = {
-	text: YText;
-	awareness: Awareness;
-	readOnly: boolean;
-	flush: () => Promise<boolean>;
-};
-
 interface TextEditorProps {
-	shared?: CollaborativeEditor;
 	panelId?: string;
 	seed: string;
 	path: string;
@@ -157,7 +146,6 @@ const AUTOSAVE_DELAY_MS = 800;
  */
 export function TextEditor({
 	panelId,
-	shared,
 	seed,
 	path,
 	reloadKey,
@@ -202,11 +190,6 @@ export function TextEditor({
 	const themeCompartment = useRef(new Compartment());
 	const languageCompartment = useRef(new Compartment());
 	const fontSizeCompartment = useRef(new Compartment());
-	const sharedRef = useRef(shared);
-	sharedRef.current = shared;
-	const sharedText = shared?.text;
-	const sharedAwareness = shared?.awareness;
-	const accessCompartment = useRef(new Compartment());
 	const lastSavedRef = useRef(seed);
 	// PERF: pending edits are kept as the CodeMirror `Text` doc (a persistent
 	// structure shared with the editor, zero-copy) — the string is
@@ -237,7 +220,6 @@ export function TextEditor({
 	// True when disk is current after the flush (nothing pending, or the save
 	// landed); false when the save was refused (conflict guard / write error).
 	const flush = useCallback(async (): Promise<boolean> => {
-		if (sharedRef.current) return sharedRef.current.flush();
 		const doc = pendingContentRef.current;
 		if (doc == null) return true;
 		pendingContentRef.current = null;
@@ -398,32 +380,6 @@ export function TextEditor({
 		if (!host) return;
 		const language = textLanguageExtensions(pathRef.current);
 		const extensions: Extension[] = [
-			...(sharedText && sharedAwareness
-				? [
-						yCollab(
-							sharedText,
-							sharedAwareness,
-							sharedRef.current?.readOnly ? { undoManager: false } : undefined,
-						),
-						keymap.of(
-							yUndoManagerKeymap.map((binding) => ({
-								...binding,
-								run: (view) =>
-									!view.state.readOnly && (binding.run?.(view) ?? false),
-							})),
-						),
-						EditorState.transactionFilter.of((transaction) =>
-							transaction.startState.readOnly &&
-							transaction.docChanged &&
-							transaction.newDoc.toString() !== sharedText.toString()
-								? []
-								: transaction,
-						),
-					]
-				: []),
-			accessCompartment.current.of(
-				EditorState.readOnly.of(sharedRef.current?.readOnly ?? false),
-			),
 			basicSetup,
 			EditorView.lineWrapping,
 			keymap.of(manualSaveKeymap),
@@ -479,7 +435,7 @@ export function TextEditor({
 				if (!update.docChanged) return;
 				if (isTexPath(pathRef.current) || /\.bib$/i.test(pathRef.current))
 					invalidateTexProjectIndex();
-				if (!sharedRef.current && !dirtyRef.current) {
+				if (!dirtyRef.current) {
 					dirtyRef.current = true;
 					onDirtyChangeRef.current(true);
 				}
@@ -527,13 +483,13 @@ export function TextEditor({
 						}
 					}
 				}
-				if (!sharedRef.current) schedulePersistRef.current(update.state.doc);
+				schedulePersistRef.current(update.state.doc);
 			}),
 		];
 		const view = new EditorView({
 			parent: host,
 			state: EditorState.create({
-				doc: sharedText?.toString() ?? seedRef.current,
+				doc: seedRef.current,
 				extensions,
 			}),
 		});
@@ -545,21 +501,7 @@ export function TextEditor({
 		// Mount-once; seed/path/theme changes are handled by the effects below
 		// (`manualSaveKeymap` / `selection.selectionListener` /
 		// `handleDiagnostics` are stable — never re-mount the editor).
-	}, [
-		manualSaveKeymap,
-		selection.selectionListener,
-		handleDiagnostics,
-		sharedText,
-		sharedAwareness,
-	]);
-
-	useEffect(() => {
-		viewRef.current?.dispatch({
-			effects: accessCompartment.current.reconfigure(
-				EditorState.readOnly.of(shared?.readOnly ?? false),
-			),
-		});
-	}, [shared?.readOnly]);
+	}, [manualSaveKeymap, selection.selectionListener, handleDiagnostics]);
 
 	useEffect(() => {
 		const view = viewRef.current;
@@ -740,7 +682,7 @@ export function TextEditor({
 	// session — its flush would pass the conflict check (disk === lastSaved)
 	// and overwrite the reloaded content — and swap the document in place.
 	useEffect(() => {
-		if (reloadKey === 0 || sharedRef.current) return; // mount: document was seeded directly
+		if (reloadKey === 0) return; // mount: document was seeded directly
 		if (debounceRef.current) {
 			clearTimeout(debounceRef.current);
 			debounceRef.current = null;

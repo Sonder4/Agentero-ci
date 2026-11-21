@@ -14,10 +14,6 @@ import {
 } from "react-icons/si";
 import { JianguoyunIcon } from "@/components/icons/jianguoyun-icon";
 import {
-	CloudUsageLine,
-	useCloudUsage,
-} from "@/components/settings/cloud-usage";
-import {
 	HelpLabel,
 	PageTitle,
 	SettingsGroup,
@@ -44,8 +40,6 @@ import {
 	TooltipContent,
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { authClient } from "@/features/account/client";
-import { accountSurfaceEnabled } from "@/features/account/visibility";
 import { formatLocaleTimestamp } from "@/i18n";
 import { formatBytes } from "@/lib/core/background-tasks";
 import { events } from "@/lib/core/bindings";
@@ -237,25 +231,6 @@ function VaultSyncForm({
 	const [syncError, setSyncError] = useState<string | null>(null);
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [scopeSizes, setScopeSizes] = useState<SyncScopeSizes | null>(null);
-	const [activeOrgId, setActiveOrgId] = useState("");
-	const cloudSubject =
-		form.agenteroSubject === "organization" ? "organization" : "user";
-	const cloudUsage = useCloudUsage(
-		cloudSubject,
-		cloudSubject === "organization" ? activeOrgId || undefined : undefined,
-	);
-
-	useEffect(() => {
-		if (!accountSurfaceEnabled) return;
-		let cancelled = false;
-		void authClient.getSession().then((result) => {
-			const id = result.data?.session.activeOrganizationId ?? "";
-			if (!cancelled) setActiveOrgId(id);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
 
 	const refresh = useCallback(async () => {
 		if (!localVault) return;
@@ -356,22 +331,17 @@ function VaultSyncForm({
 	const patchScope = (key: keyof SyncBackendConfig["scope"], value: boolean) =>
 		patch({ scope: { ...scope, [key]: value } });
 
-	const isAgentero = form.backend === "agentero";
+	const isLegacyBackend = form.backend === "agentero";
 	const isWebdav = form.backend === "webdav";
 	const isGit = form.backend === "git";
 	const backendLocked = status?.configured === true;
-	const providerLinks = isAgentero
+	const providerLinks = isLegacyBackend
 		? []
 		: isGit
 			? GIT_PROVIDER_LINKS
 			: isWebdav
 				? WEBDAV_PROVIDER_LINKS
 				: SYNC_PROVIDER_LINKS;
-	const cloudBlocked =
-		isAgentero &&
-		(!cloudUsage?.signedIn ||
-			cloudUsage.limit === 0 ||
-			(cloudSubject === "organization" && !activeOrgId));
 
 	const reportSyncError = (error: unknown) => {
 		const detail = errorMessage(error);
@@ -495,23 +465,19 @@ function VaultSyncForm({
 				type="button"
 				size="sm"
 				onClick={() => void save()}
-				disabled={saving || syncing || cloudBlocked}
+				disabled={saving || syncing || isLegacyBackend}
 			>
 				{saving ? (
 					<LoaderCircle data-icon="inline-start" className="animate-spin" />
 				) : null}
-				{isAgentero && !status?.configured
-					? t("sync.useAccount")
-					: status?.configured
-						? t("sync.save")
-						: t("sync.connect")}
+				{status?.configured ? t("sync.save") : t("sync.connect")}
 			</Button>
 		) : (
 			<Button
 				type="button"
 				size="sm"
 				onClick={() => void runSync()}
-				disabled={syncing}
+				disabled={syncing || isLegacyBackend}
 			>
 				{syncing ? (
 					<LoaderCircle data-icon="inline-start" className="animate-spin" />
@@ -594,14 +560,9 @@ function VaultSyncForm({
 					<TooltipTrigger asChild>
 						<span className="inline-flex">
 							<Select
-								value={form.backend}
+								value={isLegacyBackend ? "" : form.backend}
 								onValueChange={(value) => {
-									if (
-										value === "agentero" ||
-										value === "s3" ||
-										value === "webdav" ||
-										value === "git"
-									) {
+									if (value === "s3" || value === "webdav" || value === "git") {
 										patch({ backend: value });
 									}
 								}}
@@ -613,7 +574,7 @@ function VaultSyncForm({
 									className="w-44"
 									aria-labelledby="sync-backend-label"
 								>
-									<SelectValue />
+									<SelectValue placeholder={t("sync.backendRemovedName")} />
 								</SelectTrigger>
 								<SelectContent>
 									{BACKEND_OPTIONS.map((option) => (
@@ -660,47 +621,10 @@ function VaultSyncForm({
 				</div>
 			</div>
 
-			{isAgentero ? (
-				<SettingsGroup>
-					<SettingsRow label={t("sync.space")} htmlFor="sync-space">
-						<Select
-							value={form.agenteroSubject}
-							onValueChange={(value) => {
-								if (value !== "user" && value !== "organization") return;
-								patch({
-									agenteroSubject: value,
-									agenteroOrgId: value === "organization" ? activeOrgId : "",
-								});
-							}}
-							disabled={backendLocked}
-						>
-							<SelectTrigger id="sync-space" size="sm" className="w-44">
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="user">{t("sync.spacePersonal")}</SelectItem>
-								<SelectItem value="organization" disabled={!activeOrgId}>
-									{t("sync.spaceTeam")}
-								</SelectItem>
-							</SelectContent>
-						</Select>
-					</SettingsRow>
-					<div className="px-3 py-2">
-						<CloudUsageLine
-							subject={cloudSubject}
-							orgId={
-								cloudSubject === "organization"
-									? activeOrgId || undefined
-									: undefined
-							}
-						/>
-						{cloudSubject === "organization" && !activeOrgId ? (
-							<p className="text-muted-foreground text-xs">
-								{t("sync.noTeam")}
-							</p>
-						) : null}
-					</div>
-				</SettingsGroup>
+			{isLegacyBackend ? (
+				<p className="text-muted-foreground text-xs">
+					{t("sync.backendRemoved")}
+				</p>
 			) : isGit ? (
 				<SettingsGroup>
 					<SettingsRow
