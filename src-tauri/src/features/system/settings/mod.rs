@@ -1898,8 +1898,10 @@ mod tests {
             .collect();
         // Simulate an older settings.json, exercising the real disk load path.
         persist(&store.path, &legacy).expect("write legacy settings");
-        let (mut loaded, existed) = read_file(&store.path);
-        assert!(existed);
+        let mut loaded = store
+            .reload_if_changed()
+            .expect("reload legacy settings through Host")
+            .expect("observe the newly written settings file");
         let added = loaded.library_columns.last().unwrap();
         assert_eq!(added.key, "addedAt");
         assert!(!added.visible);
