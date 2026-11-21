@@ -401,7 +401,13 @@ export function openTab(
 			vaultState.tree,
 			vaultState.paperFolders,
 		);
-		if (vaultLoadGeneration() !== generation) return;
+		if (
+			vaultLoadGeneration() !== generation ||
+			getTabs().find((tab) => tab.id === insertedId)?.path !== placeholder.path
+		) {
+			revokeTabMediaSources(res);
+			return;
+		}
 		if (res.error) {
 			notifyError(
 				res.error === "cannotPreview"
@@ -969,6 +975,7 @@ export function hydratePlaceholderTabs(tabIds: readonly string[]): void {
 					vaultStore.getState().vaultPath !== vaultState.vaultPath ||
 					vaultLoadGeneration() !== generation
 				) {
+					revokeTabMediaSources(res);
 					return;
 				}
 				if (res.error) {
@@ -1236,27 +1243,35 @@ function swapWritingSource(panel: DocTab, target: string, root: string): void {
 			vaultLoadGeneration() !== generation ||
 			vaultStore.getState().vaultPath !== vaultState.vaultPath
 		) {
-			return;
+			return revokeTabMediaSources(res);
 		}
 		const current = getTabs().find((tab) => tab.id === panel.id);
-		if (!current || current.path !== panel.path) return;
+		if (!current || current.path !== panel.path)
+			return revokeTabMediaSources(res);
 		if (res.error) {
 			notifyError(
 				res.error === "cannotPreview"
 					? i18n.t("app:errors.cannotPreview", { name: basenameOf(target) })
 					: res.error,
 			);
-			return;
+			return revokeTabMediaSources(res);
 		}
 		// The outgoing editor must not lose its debounced autosave to the
 		// remount below. A refused save (disk conflict) keeps the panel as-is.
 		const markdown = markdownEditorFor(panel.id);
 		if (markdown?.hasPendingSource() && !(await markdown.flushSource())) {
-			return;
+			return revokeTabMediaSources(res);
 		}
-		if (!(await flushTextEditorFor(panel.path))) return;
+		if (!(await flushTextEditorFor(panel.path)))
+			return revokeTabMediaSources(res);
 		const latest = getTabs().find((tab) => tab.id === panel.id);
-		if (!latest || latest.path !== panel.path) return;
+		if (
+			writingSourceSwaps.get(panel.id) !== token ||
+			vaultLoadGeneration() !== generation ||
+			!latest ||
+			latest.path !== panel.path
+		)
+			return revokeTabMediaSources(res);
 		// The outgoing source pane may currently show a project asset (image /
 		// material PDF) holding a viewer source lease; replace releases it.
 		revokeTabMediaSources(latest);
@@ -1417,7 +1432,7 @@ export async function syncRenamedPaperTabs(
 	} catch {
 		return;
 	}
-	if (vaultLoadGeneration() !== generation) return;
+	if (vaultLoadGeneration() !== generation) return revokeTabMediaSources(res);
 
 	const notesPath = res.notesPath ?? notesPathForPaper(toAbs);
 	const paperKey = normalizeTabPath(toAbs);

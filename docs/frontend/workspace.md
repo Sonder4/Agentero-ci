@@ -47,6 +47,8 @@ Library 始终位于所在标签条的第一位：禁止拖动 Library 及包含
 
 ### 异步加载结果的落地规则
 
+关闭标签、切换 Vault 或取消换源后，迟到的加载结果会释放各自的媒体租约；关闭后的论文不会再打开 NOTES。
+
 `loadTabResources`、catalog 查询（`listPapers`、`catalogListProperties`）等异步结果返回时，界面可能已经切换 Vault 或关闭了视图。新增或修改此类代码时遵守：
 
 1. **发起前记下身份**：当前 Vault 路径与 `vaultLoadGeneration()`（`src/lib/workspace/identity.ts`，读取 vault store 的 `treeLoadGeneration`，只在 `activateVault` 递增）；面向某个视图的加载再记下视图 id 与 `params.path`。
