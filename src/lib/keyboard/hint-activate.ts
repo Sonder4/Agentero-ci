@@ -12,6 +12,24 @@ export function activateHintTarget(
 	point?: { x: number; y: number },
 ): void {
 	element.focus({ preventScroll: true });
+	// Radix Select swallows the first pointerup after its trigger's
+	// pointerdown and only selects mouse items on pointerup. A synthetic
+	// sequence opens the menu in the same tick, so the option's pointerup is
+	// the one swallowed. Use the item's keyboard contract (Enter) instead.
+	if (
+		element.matches("[role=option]") &&
+		element.closest("[data-radix-select-viewport]")
+	) {
+		const key = {
+			key: "Enter",
+			code: "Enter",
+			bubbles: true,
+			cancelable: true,
+		};
+		element.dispatchEvent(new KeyboardEvent("keydown", key));
+		element.dispatchEvent(new KeyboardEvent("keyup", key));
+		return;
+	}
 	const rect = element.getBoundingClientRect();
 	const x = point?.x ?? rect.left + rect.width / 2;
 	const y = point?.y ?? rect.top + rect.height / 2;
