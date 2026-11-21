@@ -261,6 +261,8 @@ fn deliver_ui_request(
         "section": req.section,
         "direction": req.direction,
         "reference": req.reference,
+        // Logged by the desktop as `delivery=…` on `op end ui_request`.
+        "actionId": req.delivery_id,
         "url": url,
         "method": method,
         "methods": methods,

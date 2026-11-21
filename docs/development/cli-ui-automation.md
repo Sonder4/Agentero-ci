@@ -1,6 +1,6 @@
 # CLI 驱动的 UI 自动化（需求与缺口）
 
-> 状态：**部分实现**。`agentero ui actions / click / fill / key / shortcut / command`、`ui open / close / window / split` 已实现（见 [../backend/cli.md](../backend/cli.md#触发运行中窗口的控件)）。截图、日志读取、等待与状态读取尚未实现，本文记录需求。总则见根目录 `AGENTS.md`「UI 可脚本化（CLI 驱动）」。
+> 状态：**部分实现**。`agentero ui actions / click / fill / key / shortcut / command / wait / slide / screenshot`、`ui open / close / window / split` 已实现（见 [../backend/cli.md](../backend/cli.md#触发运行中窗口的控件)）。`ui actions --json` 输出控件状态，所有 `ui` 动作返回写入日志的 `actionId`。`--idle` 等待、独立的日志读取命令、非 Windows 截图与分类错误码尚未实现，本文记录需求。总则见根目录 `AGENTS.md`「UI 可脚本化（CLI 驱动）」。
 
 ## 目标
 
@@ -30,14 +30,20 @@ ui actions → ui click / fill / key → 等待界面稳定 → 截图 → 读�
 - 所有可交互控件都要满足 [../frontend/components.md](../frontend/components.md)「可脚本化控件」，能被 `ui actions` 列出。
 - 关键流程的控件要有稳定的 `data-ui-action` ID，测试脚本优先用 ID，不用随语言变化的名称。
 
+### 已实现（2026-11-21）
+
+- **等待**：`ui wait <id|名称> [--gone] [--timeout]`，在应用内轮询控件出现或消失，超时以非零状态退出。
+- **状态读取**：并入 `ui actions --json`，每个控件带 `role` 与 `state`（勾选、选中、展开、按下、焦点、输入值、滑动条数值与范围）。禁用控件仍不列出，脚本以「不在列表中」判断不可用。
+- **滑动条**：`ui slide <id|名称> <值|min|max|+N|-N>`，原生 range 走 input 事件，ARIA slider 走键盘约定。
+- **截图**：`ui screenshot [--window] [-o] [--overwrite]`，Host 用 `PrintWindow(PW_RENDERFULLCONTENT)` 截取原生窗口，最小化、隐藏或全黑时报错。
+- **动作关联**：本地 `ui` 动作返回 `actionId`，应用日志的 `op start/end ui_action id=…` 使用同一 id；工作区动作记录为 `op end ui_request delivery=…`。
+
 ### 待实现
 
-1. **等待**：`ui wait <id|名称> [--gone] [--timeout]`，等控件出现或消失；`ui wait --idle` 等后台任务队列与正在进行的加载结束。现在 `click` 在动作分派后就返回，对话框与后台任务仍在进行，连续指令之间需要它来避免时序竞争。
-2. **状态读取**：`ui get <id|名称> --json` 返回控件的名称、文字、`disabled` / `checked` / `selected` / `expanded`、输入框的值；可选返回当前活动标签与可见面板。
-3. **截图**：`ui screenshot [--window <label>] [-o <file>]`，由 Host 截取原生窗口，输出 PNG 路径。窗口被遮挡或最小化时要给出明确错误，而不是返回黑图。
-4. **日志**：`agentero logs tail [--since <时间|动作 id>] [--grep] [--level]`，读取应用日志目录中的 `agentero.log`。
-5. **动作关联**：每次 `ui` 动作返回一个 id，并写入日志，`logs tail --since <id>` 可以只看这次操作之后的日志。
-6. **错误语义**：控件不存在、被禁用、被遮挡、窗口未挂载分别返回不同的 `error.code`，脚本能据此决定重试还是失败。
+1. **空闲等待**：`ui wait --idle` 等后台任务队列与正在进行的加载结束。需要先定义哪些任务算「忙」（入库、翻译、PDF 渲染）。
+2. **日志读取**：`agentero logs tail [--since <动作 id>] [--grep] [--level]`。现在可用 `grep <actionId>` 直接读 `agentero.log`。
+3. **其它平台截图**：macOS 需要屏幕录制权限与 ScreenCaptureKit，Linux 视窗口系统而定。
+4. **错误语义**：控件不存在、被禁用、被遮挡、窗口未挂载分别返回不同的 `error.code`，脚本能据此决定重试还是失败。
 
 ### Windows 桌面实测（2026-11-20 至 2026-11-21）
 

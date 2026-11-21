@@ -195,10 +195,10 @@ CI 的 `agentero-tests` 任务运行 Host 与 `agentero-plugin-host` 测试，�
 1. 启动应用：`pnpm tauri dev`。vite 已在 1420 端口运行时，可用 `pnpm tauri dev --config '{"build":{"beforeDevCommand":""}}'` 复用它（资源需已 stage 过）。
 2. 使用与源码同版本的 CLI：`cargo run -p agentero-cli -- <args>`，或 `cargo build -p agentero-cli` 后运行 `target/debug/agentero-cli`。已安装的 CLI 可能落后于工作区。
 3. 列出当前窗口可操作的控件：`agentero ui actions --json`（`--window settings` 指定其它窗口）。
-4. 触发：`ui click <id|名称> [--occurrence N]`、`ui fill <文本>`、`ui key <组合键>`、`ui shortcut <id>`、`ui command <命令面板 id>`；打开文档与窗口用 `ui open` / `ui window`。
-5. 再次 `ui actions --json` 确认界面进入下一状态（`ui wait` 实现前，这一步代替等待）。
-6. 截图：`ui screenshot` 实现前，用系统截图工具截取应用窗口（Windows 可用 `PrintWindow` 的 `PW_RENDERFULLCONTENT` 截取 WebView2 内容）。`ui actions` 判定的「可见」只看网页视口，混合 DPI 多屏下视口可能比窗口宽，需以截图为准。
-7. 日志：应用日志目录中的 `agentero.log`（Windows 为 `%LOCALAPPDATA%\com.poco-ai.agentero\logs\`，其它平台为 Tauri `app_log_dir`）。检查本步时间段内有无 `ERROR` / `WARN` 和失败的 `op end … ok=false`。
+4. 触发：`ui click <id|名称> [--occurrence N]`、`ui fill <文本>`、`ui key <组合键>`、`ui slide <id|名称> <值>`、`ui shortcut <id>`、`ui command <命令面板 id>`；打开文档与窗口用 `ui open` / `ui window`。
+5. 等待下一状态：`ui wait <下一步要用的控件> [--gone]`，不用固定 sleep。需要断言状态时读 `ui actions --json` 中控件的 `state`。
+6. 截图：`ui screenshot -o <步骤>.png`。其它平台暂用系统截图工具。`ui actions` 判定的「可见」只看网页视口，混合 DPI 多屏下以截图为准。
+7. 日志：应用日志目录中的 `agentero.log`（Windows 为 `%LOCALAPPDATA%\com.poco-ai.agentero\logs\`，其它平台为 Tauri `app_log_dir`）。用每步返回的 `actionId` 搜索 `op end ui_action … id=<actionId>`，检查其后有无 `ERROR` / `WARN` 和失败的 `op end … ok=false`。
 
 汇报时列出执行的指令序列、截图和相关日志行；CLI 无法覆盖的步骤（系统对话框、拖拽、视觉细节）单独说明用了什么方式验证。
 

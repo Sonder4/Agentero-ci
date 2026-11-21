@@ -112,6 +112,7 @@ dependencies = [
  "openssh",
  "openssh-sftp-client",
  "os_info",
+ "png 0.18.1",
  "posthog-rs",
  "reqwest 0.12.28",
  "rmcp",

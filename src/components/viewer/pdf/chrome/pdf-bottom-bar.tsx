@@ -203,6 +203,7 @@ export const PdfBottomBar = memo(function PdfBottomBar({
 						step={1}
 						value={zoomPercent}
 						aria-label={t("pdf.zoomPercentage")}
+						data-ui-action="pdf.zoom.slider"
 						aria-valuemin={zoomMinPercent}
 						aria-valuemax={zoomMaxPercent}
 						aria-valuenow={zoomPercent}

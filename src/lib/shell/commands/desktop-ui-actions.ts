@@ -26,6 +26,8 @@ const LOCAL_ACTIONS = new Set([
 	"click",
 	"key",
 	"fill",
+	"wait",
+	"slide",
 ]);
 
 export function isDesktopUiAction(action: string): boolean {
@@ -49,12 +51,14 @@ const CONTROL_SELECTOR = [
 	"input[type=submit]",
 	"input[type=checkbox]",
 	"input[type=radio]",
+	"input[type=range]",
 	TEXT_INPUT_SELECTOR,
 	"summary",
 	"[role=button]",
 	"[role=checkbox]",
 	"[role=switch]",
 	"[role=radio]",
+	"[role=slider]",
 	"[role=tab]",
 	"[role=combobox]",
 	"[role=menuitem]",
@@ -101,6 +105,94 @@ function controlLabel(element: HTMLElement): string {
 	)
 		.trim()
 		.replace(/\s+/g, " ");
+}
+
+const IMPLICIT_ROLES: [string, string][] = [
+	["input[type=range]", "slider"],
+	["input[type=checkbox]", "checkbox"],
+	["input[type=radio]", "radio"],
+	["input[type=button], input[type=submit], button, summary", "button"],
+	[`${TEXT_INPUT_SELECTOR}, textarea, [contenteditable=true]`, "textbox"],
+	["select", "combobox"],
+	["a[href]", "link"],
+];
+
+function controlRole(element: HTMLElement): string {
+	return (
+		element.getAttribute("role") ??
+		IMPLICIT_ROLES.find(([selector]) => element.matches(selector))?.[1] ??
+		element.localName
+	);
+}
+
+type ControlState = Record<string, string | number | boolean>;
+
+/** Observable state for scripts: checked / selected / expanded / value … */
+function controlState(element: HTMLElement): ControlState | undefined {
+	const state: ControlState = {};
+	const aria = (name: string) => element.getAttribute(`aria-${name}`);
+	if (
+		element instanceof HTMLInputElement &&
+		(element.type === "checkbox" || element.type === "radio")
+	) {
+		state.checked = element.indeterminate ? "mixed" : element.checked;
+	} else if (aria("checked") != null) {
+		state.checked =
+			aria("checked") === "mixed" ? "mixed" : aria("checked") === "true";
+	}
+	for (const key of ["selected", "expanded", "pressed"]) {
+		const value = aria(key);
+		if (value === "true" || value === "false") state[key] = value === "true";
+	}
+	const slider = sliderRange(element);
+	if (slider) Object.assign(state, slider);
+	else if (
+		element instanceof HTMLInputElement ||
+		element instanceof HTMLTextAreaElement ||
+		element instanceof HTMLSelectElement
+	) {
+		if (!element.matches("input[type=checkbox], input[type=radio]"))
+			state.value = element.value.slice(0, 200);
+	} else if (
+		element.isContentEditable ||
+		// Radix Select-style triggers show the chosen option as their text.
+		element.getAttribute("role") === "combobox"
+	) {
+		state.value = element.innerText.trim().slice(0, 200);
+	}
+	if (document.activeElement === element) state.focused = true;
+	return Object.keys(state).length ? state : undefined;
+}
+
+function sliderRange(element: HTMLElement) {
+	if (element instanceof HTMLInputElement && element.type === "range") {
+		const min = Number(element.min || 0);
+		const max = Number(element.max || 100);
+		const step = element.step === "any" ? 0 : Number(element.step || 1);
+		return { value: element.valueAsNumber, min, max, step };
+	}
+	if (element.getAttribute("role") !== "slider") return undefined;
+	const number = (name: string, fallback: number) => {
+		const value = Number(element.getAttribute(`aria-value${name}`));
+		return Number.isFinite(value) ? value : fallback;
+	};
+	return {
+		value: number("now", Number.NaN),
+		min: number("min", 0),
+		max: number("max", 100),
+	};
+}
+
+function describeState(state: ControlState | undefined): string {
+	if (!state) return "";
+	const parts = Object.entries(state).map(([key, value]) =>
+		value === true
+			? key
+			: value === false
+				? `not ${key}`
+				: `${key}=${JSON.stringify(value)}`,
+	);
+	return ` (${parts.join(", ")})`;
 }
 
 function controlPoint(element: HTMLElement) {
@@ -178,17 +270,21 @@ function visibleControls(controls = availableControls()) {
 	});
 }
 
-async function clickControl(
-	target: string,
-	index: string | null | undefined,
-	right: boolean,
-) {
+/** Enabled, rendered controls matching an action id, else an exact label. */
+function matchingControls(target: string) {
+	const controls = availableControls();
+	const byId = controls.filter((control) => control.id === target);
+	return byId.length
+		? byId
+		: controls.filter((control) => control.label === target);
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Resolve one visible control like a click would, waiting up to 2 seconds. */
+async function resolveControl(target: string, index: number | undefined) {
 	const findControls = () => {
-		const controls = availableControls();
-		const byId = controls.filter((control) => control.id === target);
-		const candidates = byId.length
-			? byId
-			: controls.filter((control) => control.label === target);
+		const candidates = matchingControls(target);
 		const visible = visibleControls(candidates);
 		const candidate = candidates[0];
 		if (
@@ -209,15 +305,155 @@ async function clickControl(
 	let matches = findControls();
 	const deadline = Date.now() + 2000;
 	while (!matches.length && Date.now() < deadline) {
-		await new Promise((resolve) => setTimeout(resolve, 125));
+		await sleep(125);
 		matches = findControls();
 	}
 	if (matches.length > 1 && index == null)
 		throw new Error(
 			`Multiple controls match "${target}". Choose --occurrence from ui actions.`,
 		);
-	const control = matches[Number(index ?? 1) - 1];
+	const control = matches[(index ?? 1) - 1];
 	if (!control) throw new Error(`No enabled control matches "${target}".`);
+	return control;
+}
+
+type WaitSpec = { target: string; gone?: boolean; timeoutMs: number };
+
+async function waitForControl({ target, gone = false, timeoutMs }: WaitSpec) {
+	const started = Date.now();
+	const deadline = started + timeoutMs;
+	for (;;) {
+		const matches = matchingControls(target);
+		if (gone ? !matches.length : matches.length) {
+			const elapsedMs = Date.now() - started;
+			return {
+				action: "wait",
+				target,
+				gone,
+				elapsedMs,
+				controls: matches.map(({ id, label, element }) => ({
+					id,
+					label,
+					role: controlRole(element),
+					state: controlState(element),
+					visible: Boolean(controlPoint(element)),
+				})),
+				lines: [
+					gone
+						? `"${target}" is gone after ${elapsedMs} ms`
+						: `"${target}" is present after ${elapsedMs} ms`,
+				],
+			};
+		}
+		const left = deadline - Date.now();
+		if (left <= 0)
+			throw new Error(
+				`Timed out after ${timeoutMs} ms waiting for "${target}" to ${gone ? "disappear" : "appear"}.`,
+			);
+		await sleep(Math.min(100, left));
+	}
+}
+
+type SlideSpec = { target: string; occurrence?: number; value: string };
+
+const nextFrame = () =>
+	new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+
+async function slideControl({ target, occurrence, value: raw }: SlideSpec) {
+	// Same parsing as the Host validation: trimmed, `+N` / `-N` = steps.
+	const value = raw.trim();
+	const { element } = await resolveControl(target, occurrence);
+	const range = sliderRange(element);
+	if (!range) throw new Error(`"${target}" is not a slider.`);
+	const { min, max } = range;
+	const before = range.value;
+	const steps = /^[+-]\d+$/.test(value) ? Number(value) : undefined;
+	element.focus();
+	if (element instanceof HTMLInputElement) {
+		const step = "step" in range && range.step ? range.step : 1;
+		const next =
+			value === "min"
+				? min
+				: value === "max"
+					? max
+					: steps !== undefined
+						? before + steps * step
+						: Number(value);
+		if (next < min || next > max)
+			throw new Error(`${next} is outside the slider range ${min}–${max}.`);
+		// Native setter + input event: the same path as dragging the thumb.
+		Object.getOwnPropertyDescriptor(
+			HTMLInputElement.prototype,
+			"value",
+		)?.set?.call(element, String(next));
+		element.dispatchEvent(new Event("input", { bubbles: true }));
+		element.dispatchEvent(new Event("change", { bubbles: true }));
+	} else {
+		await slideWithKeys(element, value, steps, min, max);
+	}
+	await nextFrame();
+	const after = sliderRange(element)?.value;
+	return {
+		action: "slide",
+		target,
+		before,
+		value: after,
+		min,
+		max,
+		lines: [`Slid "${target}" from ${before} to ${after} (${min}–${max})`],
+	};
+}
+
+/** ARIA sliders (no native input): drive them with the keyboard contract. */
+async function slideWithKeys(
+	element: HTMLElement,
+	value: string,
+	steps: number | undefined,
+	min: number,
+	max: number,
+) {
+	const press = async (key: string) => {
+		const init = { key, code: key, bubbles: true, cancelable: true };
+		element.dispatchEvent(new KeyboardEvent("keydown", init));
+		element.dispatchEvent(new KeyboardEvent("keyup", init));
+		await nextFrame();
+	};
+	const current = () => sliderRange(element)?.value ?? Number.NaN;
+	if (value === "min" || value === "max")
+		return press(value === "min" ? "Home" : "End");
+	if (steps !== undefined) {
+		for (let i = 0; i < Math.abs(steps); i++)
+			await press(steps > 0 ? "ArrowRight" : "ArrowLeft");
+		return;
+	}
+	const goal = Number(value);
+	if (goal < min || goal > max)
+		throw new Error(`${goal} is outside the slider range ${min}–${max}.`);
+	for (let i = 0; i < 1000 && current() !== goal; i++) {
+		const was = current();
+		const up = was < goal;
+		await press(up ? "ArrowRight" : "ArrowLeft");
+		const now = current();
+		if (now === was)
+			throw new Error("The slider did not respond to arrow keys.");
+		// Stepped past the goal: keep whichever side is closer.
+		if (up ? now > goal : now < goal) {
+			if (Math.abs(now - goal) > Math.abs(was - goal))
+				await press(up ? "ArrowLeft" : "ArrowRight");
+			return;
+		}
+	}
+}
+
+async function clickControl(
+	target: string,
+	index: string | null | undefined,
+	right: boolean,
+) {
+	const control = await resolveControl(
+		target,
+		index == null ? undefined : Number(index),
+	);
 	if (right) {
 		control.element.dispatchEvent(
 			new MouseEvent("contextmenu", {
@@ -312,11 +548,15 @@ async function runDesktopAction(request: UiRequestPayload) {
 			const registered = listCommands()
 				.filter((command) => command.when?.() !== false)
 				.map(({ id }) => id);
-			const controls = visibleControls().map(({ id, label, occurrence }) => ({
-				id,
-				label,
-				occurrence,
-			}));
+			const controls = visibleControls().map(
+				({ id, label, occurrence, element }) => ({
+					id,
+					label,
+					occurrence,
+					role: controlRole(element),
+					state: controlState(element),
+				}),
+			);
 			return {
 				shortcuts,
 				commands: registered,
@@ -328,8 +568,8 @@ async function runDesktopAction(request: UiRequestPayload) {
 					),
 					...registered.map((id) => `command  ${id}`),
 					...controls.map(
-						({ id, label, occurrence }) =>
-							`click    ${id ? `${id} · ` : ""}${label} [${occurrence}]`,
+						({ id, label, occurrence, role, state }) =>
+							`${role === "slider" ? "slide " : "click "}   ${id ? `${id} · ` : ""}${label} [${occurrence}]${describeState(state)}`,
 					),
 				],
 			};
@@ -356,6 +596,10 @@ async function runDesktopAction(request: UiRequestPayload) {
 		case "key":
 			dispatchKey(target);
 			break;
+		case "wait":
+			return waitForControl(JSON.parse(target) as WaitSpec);
+		case "slide":
+			return slideControl(JSON.parse(target) as SlideSpec);
 		case "fill":
 			fillFocusedInput(target);
 			return {
@@ -387,9 +631,24 @@ export function DesktopUiActionListener() {
 					if (disposed) return;
 					for (const request of await commands.uiActionTakePending()) {
 						if (!request.reference) continue;
+						// `id` matches the CLI's `actionId`, so a script can find
+						// everything logged while its action ran.
+						const fields = {
+							id: request.reference,
+							action: request.action,
+							window: request.window,
+							// Fill values may be secrets; never log them.
+							target: request.action === "fill" ? undefined : request.path,
+						};
+						const started = performance.now();
+						logger.info("op start ui_action", fields);
 						const result = await runDesktopAction(request).catch((error) => ({
 							error: errorText(error),
 						}));
+						const end = `op end ui_action ok=${!("error" in result)} duration_ms=${Math.round(performance.now() - started)}`;
+						if ("error" in result)
+							logger.warn(end, { ...fields, error: result.error });
+						else logger.info(end, fields);
 						const reply = await commands.uiActionComplete(
 							request.reference,
 							JSON.stringify(result),

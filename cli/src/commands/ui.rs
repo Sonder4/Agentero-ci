@@ -4,7 +4,7 @@
 //! native child window, close a document) so scripts and external agents can
 //! drive the running App without touching its internals.
 
-use crate::error::CliError;
+use crate::error::{CliError, ExitCode};
 use crate::resolve::{resolve_vault, GlobalOpts};
 use base64::{engine::general_purpose::STANDARD, Engine};
 use clap::{Subcommand, ValueEnum, ValueHint};
@@ -14,7 +14,8 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use agentero_core::features::open_request::{
-    write_local_ui_request, UiRequestPayload, UI_ACTION_CHATGPT,
+    local_ui_screenshot_path, write_local_ui_request, UiRequestPayload, UiSlideSpec, UiWaitSpec,
+    UI_ACTION_CHATGPT, UI_ACTION_SCREENSHOT, UI_ACTION_SLIDE, UI_ACTION_WAIT, UI_WAIT_MAX_MS,
 };
 
 /// Window ids `agentero ui window` may target (mirrors the desktop frontend's
@@ -63,6 +64,40 @@ pub enum UiCmd {
         value: String,
         #[arg(long, default_value = "main")]
         window: String,
+    },
+    /// Wait until a control (action id or label) is visible, or gone.
+    Wait {
+        target: String,
+        /// Wait until no visible control matches instead.
+        #[arg(long)]
+        gone: bool,
+        /// Seconds before giving up (at most 120).
+        #[arg(long, default_value_t = 10.0)]
+        timeout: f64,
+        #[arg(long, default_value = "main")]
+        window: String,
+    },
+    /// Set a slider (action id or label) to a value, `min`, `max`, or `+N`/`-N` steps.
+    Slide {
+        target: String,
+        #[arg(allow_hyphen_values = true)]
+        value: String,
+        #[arg(long)]
+        occurrence: Option<usize>,
+        #[arg(long, default_value = "main")]
+        window: String,
+    },
+    /// Save a PNG of a running Agentero window (Windows only for now).
+    Screenshot {
+        #[arg(long, default_value = "main")]
+        window: String,
+        /// Output PNG (default: agentero-<window>-<time>.png in the current directory).
+        // `-o` / `--out`, like `export bib`, so it does not clash with global `--output`.
+        #[arg(short = 'o', long = "out", value_name = "FILE", value_hint = ValueHint::FilePath)]
+        out: Option<PathBuf>,
+        /// Replace an existing output file.
+        #[arg(long)]
+        overwrite: bool,
     },
     /// Operate the signed-in ChatGPT website in the open Agentero sidebar.
     Chatgpt {
@@ -158,6 +193,32 @@ pub fn run(cmd: UiCmd, globals: &GlobalOpts) -> Result<Value, CliError> {
         } => run_local("click", Some(label), window, occurrence, right),
         UiCmd::Key { chord, window } => run_local("key", Some(chord), window, None, false),
         UiCmd::Fill { value, window } => run_local("fill", Some(value), window, None, false),
+        UiCmd::Wait {
+            target,
+            gone,
+            timeout,
+            window,
+        } => run_wait(target, gone, timeout, window),
+        UiCmd::Slide {
+            target,
+            value,
+            occurrence,
+            window,
+        } => {
+            let spec = UiSlideSpec {
+                target,
+                occurrence,
+                value,
+            };
+            let spec = serde_json::to_string(&spec).expect("slide spec serializes");
+            let request = UiRequestPayload::local_action(UI_ACTION_SLIDE, Some(spec), window, None);
+            request_local(request, Duration::from_secs(10))
+        }
+        UiCmd::Screenshot {
+            window,
+            out,
+            overwrite,
+        } => run_screenshot(window, out, overwrite),
         UiCmd::Chatgpt {
             action,
             target,
@@ -218,6 +279,87 @@ fn run_local(
     let mut request = UiRequestPayload::local_action(action, target, window, occurrence);
     request.direction = right.then(|| "right".to_owned());
     request_local(request, Duration::from_secs(10))
+}
+
+fn run_wait(target: String, gone: bool, timeout: f64, window: String) -> Result<Value, CliError> {
+    let timeout_ms = (timeout * 1000.0).round();
+    if !timeout_ms.is_finite() || timeout_ms < 1.0 || timeout_ms > UI_WAIT_MAX_MS as f64 {
+        return Err(CliError::usage(format!(
+            "--timeout must be between 0.001 and {} seconds",
+            UI_WAIT_MAX_MS / 1000
+        )));
+    }
+    let timeout_ms = timeout_ms as u64;
+    let spec = serde_json::to_string(&UiWaitSpec {
+        target,
+        gone,
+        timeout_ms,
+    })
+    .expect("wait spec serializes");
+    let request = UiRequestPayload::local_action(UI_ACTION_WAIT, Some(spec), window, None);
+    // The desktop answers when the wait ends; allow for request pickup on top.
+    request_local(
+        request,
+        Duration::from_millis(timeout_ms) + Duration::from_secs(10),
+    )
+}
+
+fn run_screenshot(
+    window: String,
+    output: Option<PathBuf>,
+    overwrite: bool,
+) -> Result<Value, CliError> {
+    let output = match output {
+        Some(path) => path,
+        None => {
+            let millis = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_or(0, |elapsed| elapsed.as_millis());
+            PathBuf::from(format!("agentero-{window}-{millis}.png"))
+        }
+    };
+    if !output
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("png"))
+    {
+        return Err(CliError::usage("The screenshot output must be a .png file"));
+    }
+    if output.exists() && !overwrite {
+        return Err(CliError::usage(
+            "The output file already exists. Pass --overwrite to replace it.",
+        ));
+    }
+    let directory = output
+        .parent()
+        .filter(|path| !path.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    if !directory.is_dir() {
+        return Err(CliError::usage("The output directory does not exist"));
+    }
+    let request = UiRequestPayload::local_action(UI_ACTION_SCREENSHOT, None, window, None);
+    let id = request.reference.clone().unwrap_or_default();
+    let mut result = request_local(request, Duration::from_secs(20))?;
+    let captured =
+        local_ui_screenshot_path(&id).map_err(|error| CliError::message(error.to_string()))?;
+    if std::fs::rename(&captured, &output).is_err() {
+        // Different volume: copy, then drop the Host's file.
+        std::fs::copy(&captured, &output)
+            .map_err(|error| CliError::message(format!("failed to save screenshot: {error}")))?;
+        let _ = std::fs::remove_file(&captured);
+    }
+    let saved = output.canonicalize().unwrap_or(output);
+    let line = format!(
+        "Saved {}x{} screenshot to {}",
+        result["width"],
+        result["height"],
+        saved.display()
+    );
+    if let Some(object) = result.as_object_mut() {
+        object.insert("path".into(), Value::String(saved.display().to_string()));
+        object.insert("lines".into(), serde_json::json!([line]));
+    }
+    Ok(result)
 }
 
 fn run_chatgpt(
@@ -301,15 +443,26 @@ fn request_local(request: UiRequestPayload, timeout: Duration) -> Result<Value, 
     let path =
         write_local_ui_request(&request).map_err(|error| CliError::usage(error.to_string()))?;
     let response_path = path.with_extension("response");
+    // The same id appears in the app log (`op … ui_action id=…`).
+    let action_id = request.reference.clone().unwrap_or_default();
     let deadline = Instant::now() + timeout;
     while Instant::now() < deadline {
         match std::fs::read_to_string(&response_path) {
             Ok(body) => {
                 let _ = std::fs::remove_file(&response_path);
-                let response: Value = serde_json::from_str(&body)
+                let mut response: Value = serde_json::from_str(&body)
                     .map_err(|error| CliError::message(error.to_string()))?;
                 if let Some(error) = response.get("error").and_then(Value::as_str) {
-                    return Err(CliError::message(error.to_owned()));
+                    return Err(action_error(
+                        format!("{error} (action {action_id})"),
+                        &action_id,
+                    ));
+                }
+                // ChatGPT exports write the response verbatim; keep them clean.
+                if request.action != UI_ACTION_CHATGPT {
+                    if let Some(object) = response.as_object_mut() {
+                        object.insert("actionId".into(), Value::String(action_id));
+                    }
                 }
                 return Ok(response);
             }
@@ -320,7 +473,20 @@ fn request_local(request: UiRequestPayload, timeout: Duration) -> Result<Value, 
         }
     }
     let _ = std::fs::remove_file(&path);
-    Err(CliError::message(
-        "Agentero did not acknowledge the action. Check that the requested window is open.",
+    Err(action_error(
+        format!(
+            "Agentero did not acknowledge the action. Check that the requested window is open. (action {action_id})"
+        ),
+        &action_id,
     ))
+}
+
+/// A failed dispatched action; `details.actionId` matches the app log.
+fn action_error(message: String, action_id: &str) -> CliError {
+    CliError::with_details(
+        "message",
+        message,
+        serde_json::json!({ "actionId": action_id }),
+        ExitCode::Business,
+    )
 }

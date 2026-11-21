@@ -10,6 +10,8 @@ pub use agentero_core::features::open_request::*;
 
 #[cfg(feature = "desktop")]
 pub mod commands;
+#[cfg(feature = "desktop")]
+mod screenshot;
 
 #[cfg(feature = "desktop")]
 use crate::core::error::AppError;
@@ -128,8 +130,13 @@ pub fn handle_ui_request<R: Runtime>(
 ) -> Result<UiRequestPayload, AppError> {
     let mut payload = validate_ui_request(req)?;
     let accepted = app.state::<RecentUiDeliveries>().accept(&payload);
-    payload.delivery_id = None;
+    let delivery = payload
+        .delivery_id
+        .take()
+        .map(|id| id.to_string())
+        .unwrap_or_default();
     if !accepted {
+        log::debug!(target: "agentero::op", "ui request duplicate skipped delivery={delivery}");
         return Ok(payload);
     }
 
@@ -164,7 +171,7 @@ pub fn handle_ui_request<R: Runtime>(
     focus_main_window(app);
     log::info!(
         target: "agentero::op",
-        "op end ui_request ok=true action={} vault={} path={} window={}",
+        "op end ui_request ok=true delivery={delivery} action={} vault={} path={} window={}",
         payload.action,
         trunc(payload.vault_path.as_deref().unwrap_or("")),
         trunc(payload.path.as_deref().unwrap_or("")),
@@ -303,6 +310,12 @@ pub fn spawn_cli_open_request_watcher<R: Runtime>(app: AppHandle<R>) {
                     tauri::async_runtime::spawn(async move {
                         crate::app::window::chatgpt_cli::handle(&app, req).await;
                     });
+                    continue;
+                }
+                if req.action == UI_ACTION_SCREENSHOT {
+                    let app = app.clone();
+                    // PrintWindow waits on the window's UI thread; keep it off the runtime.
+                    tauri::async_runtime::spawn_blocking(move || screenshot::handle(&app, &req));
                     continue;
                 }
                 let label = req.window.as_deref().unwrap_or("main");

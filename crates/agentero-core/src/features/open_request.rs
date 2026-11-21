@@ -36,6 +36,12 @@ pub const UI_ACTION_OPEN_WINDOW: &str = "open-window";
 pub const UI_ACTION_CLOSE_PATH: &str = "close-path";
 pub const UI_ACTION_SPLIT: &str = "split";
 pub const UI_ACTION_CHATGPT: &str = "chatgpt";
+/// Wait for a control to appear or disappear; `path` carries [`UiWaitSpec`].
+pub const UI_ACTION_WAIT: &str = "wait";
+/// Set a slider value; `path` carries [`UiSlideSpec`].
+pub const UI_ACTION_SLIDE: &str = "slide";
+/// Capture the native window to a PNG next to the request file.
+pub const UI_ACTION_SCREENSHOT: &str = "screenshot";
 const CHATGPT_UI_REQUEST_MAX_BYTES: usize = 24 * 1024 * 1024;
 pub const LOCAL_UI_ACTIONS: &[&str] = &[
     "actions",
@@ -44,8 +50,71 @@ pub const LOCAL_UI_ACTIONS: &[&str] = &[
     "click",
     "key",
     "fill",
+    UI_ACTION_WAIT,
+    UI_ACTION_SLIDE,
+    UI_ACTION_SCREENSHOT,
     UI_ACTION_CHATGPT,
 ];
+
+/// Longest `ui wait` the desktop will honour.
+pub const UI_WAIT_MAX_MS: u64 = 120_000;
+
+/// `ui wait` arguments, JSON-encoded in [`UiRequestPayload::path`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UiWaitSpec {
+    /// Action id or label, matched like `ui click`.
+    pub target: String,
+    /// Wait until no visible control matches.
+    #[serde(default)]
+    pub gone: bool,
+    pub timeout_ms: u64,
+}
+
+/// `ui slide` arguments, JSON-encoded in [`UiRequestPayload::path`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UiSlideSpec {
+    /// Action id or label, matched like `ui click`.
+    pub target: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub occurrence: Option<usize>,
+    /// A number, `min`, `max`, or a signed step count such as `+3` / `-2`.
+    pub value: String,
+}
+
+impl UiWaitSpec {
+    fn is_valid(&self) -> bool {
+        valid_control_target(&self.target) && (1..=UI_WAIT_MAX_MS).contains(&self.timeout_ms)
+    }
+}
+
+impl UiSlideSpec {
+    fn is_valid(&self) -> bool {
+        let value = self.value.trim();
+        // `+N` / `-N` with digits only is a step count (the frontend reads it
+        // the same way), never an absolute value; write `-3.0` for a value.
+        let steps = value
+            .strip_prefix('+')
+            .or_else(|| value.strip_prefix('-'))
+            .filter(|count| !count.is_empty() && count.bytes().all(|b| b.is_ascii_digit()));
+        let valid_value = match steps {
+            Some(count) => count
+                .parse::<u32>()
+                .is_ok_and(|count| (1..=10_000).contains(&count)),
+            None => {
+                matches!(value, "min" | "max") || value.parse::<f64>().is_ok_and(f64::is_finite)
+            }
+        };
+        valid_control_target(&self.target)
+            && self.occurrence.is_none_or(|index| index > 0)
+            && valid_value
+    }
+}
+
+fn valid_control_target(target: &str) -> bool {
+    target.len() <= 4096 && !target.trim().is_empty() && !target.chars().any(char::is_control)
+}
 
 /// Dockview split directions accepted by [`UI_ACTION_SPLIT`].
 pub const SPLIT_DIRECTIONS: &[&str] = &["left", "right", "above", "below", "within"];
@@ -594,15 +663,21 @@ fn local_ui_id(req: &UiRequestPayload) -> Result<uuid::Uuid, AppError> {
     {
         return Err(AppError::message("invalid Agentero window label"));
     }
-    let valid_target = req.action == "actions"
-        || req.path.as_deref().is_some_and(|target| {
-            if req.action == UI_ACTION_CHATGPT {
-                return window == "main" && target.len() <= CHATGPT_UI_REQUEST_MAX_BYTES;
-            }
-            target.len() <= 4096
-                && (req.action == "fill"
-                    || (!target.trim().is_empty() && !target.chars().any(char::is_control)))
-        });
+    let valid_target = match req.action.as_str() {
+        "actions" | UI_ACTION_SCREENSHOT => req.path.is_none(),
+        UI_ACTION_WAIT => req.path.as_deref().is_some_and(|spec| {
+            serde_json::from_str::<UiWaitSpec>(spec).is_ok_and(|spec| spec.is_valid())
+        }),
+        UI_ACTION_SLIDE => req.path.as_deref().is_some_and(|spec| {
+            serde_json::from_str::<UiSlideSpec>(spec).is_ok_and(|spec| spec.is_valid())
+        }),
+        UI_ACTION_CHATGPT => req
+            .path
+            .as_deref()
+            .is_some_and(|target| window == "main" && target.len() <= CHATGPT_UI_REQUEST_MAX_BYTES),
+        "fill" => req.path.as_deref().is_some_and(|value| value.len() <= 4096),
+        _ => req.path.as_deref().is_some_and(valid_control_target),
+    };
     if !valid_target {
         return Err(AppError::message("invalid or missing UI action target"));
     }
@@ -653,7 +728,7 @@ pub fn take_local_ui_requests() -> Vec<UiRequestPayload> {
             .and_then(|modified| modified.elapsed().ok())
             .is_some_and(|age| age.as_secs() > CLI_OPEN_REQUEST_MAX_AGE_SECS)
         {
-            if matches!(extension, Some("request" | "response")) {
+            if matches!(extension, Some("request" | "response" | "png")) {
                 let _ = std::fs::remove_file(&path);
             }
             continue;
@@ -677,6 +752,14 @@ pub fn take_local_ui_requests() -> Vec<UiRequestPayload> {
         }
     }
     requests
+}
+
+/// Where the Host writes the PNG for a `ui screenshot` request; the CLI moves
+/// it to the requested output. Unclaimed files expire with stale requests.
+pub fn local_ui_screenshot_path(id: &str) -> Result<PathBuf, AppError> {
+    let id =
+        uuid::Uuid::parse_str(id).map_err(|_| AppError::message("invalid local UI request id"))?;
+    Ok(local_ui_dir().join(format!("{id}.png")))
 }
 
 pub fn write_local_ui_response(id: &str, response: &str) -> Result<(), AppError> {

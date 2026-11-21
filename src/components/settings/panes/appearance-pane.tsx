@@ -289,6 +289,7 @@ function AppearancePaneInner({
 					<div className="flex items-center gap-2">
 						<input
 							id={uiScaleId}
+							data-ui-action="settings.appearance.uiScale"
 							type="range"
 							min={80}
 							max={150}
@@ -376,6 +377,7 @@ function AppearancePaneInner({
 					<div className="flex items-center gap-2">
 						<input
 							id={fontId}
+							data-ui-action="settings.appearance.fontSize"
 							type="range"
 							min={12}
 							max={20}
@@ -402,6 +404,7 @@ function AppearancePaneInner({
 					<div className="flex items-center gap-2">
 						<input
 							id={lineHeightId}
+							data-ui-action="settings.appearance.lineHeight"
 							type="range"
 							min={EDITOR_LINE_HEIGHT_MIN}
 							max={EDITOR_LINE_HEIGHT_MAX}
@@ -430,6 +433,7 @@ function AppearancePaneInner({
 					<div className="flex items-center gap-2">
 						<input
 							id={wikiEmbedFontId}
+							data-ui-action="settings.appearance.wikiEmbedFontSize"
 							type="range"
 							min={WIKI_EMBED_FONT_SIZE_MIN}
 							max={WIKI_EMBED_FONT_SIZE_MAX}

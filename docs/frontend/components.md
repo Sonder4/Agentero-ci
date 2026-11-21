@@ -58,7 +58,8 @@ Agent / Reasoning 消息里的 Markdown：`Streamdown` + `PlainTable` / `PlainCo
 
 **发现规则**（`src/lib/shell/commands/desktop-ui-actions.ts`）：
 
-- 候选元素：`[data-ui-action]`、`button`、可点击的 `input`、文本输入框、`textarea`、`summary`、`a[href]`、`[contenteditable=true]`、`[data-hint]`，以及 role 为 `button` / `checkbox` / `switch` / `radio` / `tab` / `combobox` / `menuitem*` / `option` / `treeitem` / `textbox` 的元素。
+- 候选元素：`[data-ui-action]`、`button`、可点击的 `input`、`input[type=range]`、文本输入框、`textarea`、`select`、`summary`、`a[href]`、`[contenteditable=true]`、`[data-hint]`，以及 role 为 `button` / `checkbox` / `switch` / `radio` / `slider` / `tab` / `combobox` / `menuitem*` / `option` / `treeitem` / `textbox` 的元素。
+- 状态：`ui actions --json` 与 `ui wait` 从 DOM 读取 `checked` / `selected` / `expanded` / `pressed`（`aria-*` 或原生勾选状态）、输入值、滑动条的 `value` / `min` / `max` / `step`（原生 range 或 `aria-value*`）。状态要写在承接交互的元素上，脚本才能读到。
 - 排除：位于 `aria-hidden=true`、`inert`、`aria-disabled=true`、`hidden` 内，`:disabled` 或 `data-disabled`，`visibility` 不是 `visible`，不在视口内，或中心点被其它元素遮住的控件。
 - 范围：焦点在菜单 / 列表框里时只看该菜单；有模态对话框时只看对话框；否则看整个窗口。
 - 名称取值顺序：`aria-labelledby` → `aria-label` → `<label>` / 按钮值 → 可见文字 → `title` → `placeholder`；都没有时显示为 `[role]`。同名控件按出现顺序编号，用 `--occurrence` 选择。下拉框用 `aria-label`、`aria-labelledby` 或与触发按钮关联的 `<label>` 命名，名称随其用途保持稳定。
@@ -68,6 +69,7 @@ Agent / Reasoning 消息里的 Markdown：`Streamdown` + `PlainTable` / `PlainCo
 - 用 shadcn / Radix 组件或原生元素，不要用无 role 的 `div` 承接点击。
 - 只有图标的按钮必须有 `aria-label`（文案走 `t()`），可同时给 `title`。
 - 测试流程里会用到的控件加 `data-ui-action`，命名为 `<域>.<对象>.<动作>`，如 `chatgpt.selection.ask`、`pdf.viewport`。同一时刻同一 ID 只出现一处可见控件；列表行等重复控件靠名称加 `occurrence` 区分，或在 ID 里带上稳定的业务键。
+- 滑动条优先用原生 `<input type="range">`，并通过关联 `<label>` 或 `aria-label` 命名、加 `data-ui-action`（如 `pdf.zoom.slider`、`settings.appearance.fontSize`）。自绘滑块必须实现 `role=slider`、`aria-valuenow/min/max` 和方向键、Home / End，`ui slide` 依赖这套键盘约定。
 - 只在悬停时渲染的入口（如面包屑的子项候选）、拖拽、画布上的手势，要在命令面板、快捷键或 CLI 子命令中提供等价操作。
 - 操作完成后，界面状态要能被下一次 `ui actions` 观察到（出现新控件、标签、选中态）；失败走 `notifyError` 并写日志。
 
