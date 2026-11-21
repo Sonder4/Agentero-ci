@@ -14,8 +14,9 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, Instant};
 
 use agentero_core::features::open_request::{
-    local_ui_screenshot_path, write_local_ui_request, UiRequestPayload, UiSlideSpec, UiWaitSpec,
-    UI_ACTION_CHATGPT, UI_ACTION_SCREENSHOT, UI_ACTION_SLIDE, UI_ACTION_WAIT, UI_WAIT_MAX_MS,
+    local_ui_screenshot_path, write_local_ui_request, UiIdleSpec, UiRequestPayload, UiSlideSpec,
+    UiWaitSpec, UI_ACTION_CHATGPT, UI_ACTION_SCREENSHOT, UI_ACTION_SLIDE, UI_ACTION_WAIT,
+    UI_ACTION_WAIT_IDLE, UI_WAIT_MAX_MS,
 };
 
 /// Window ids `agentero ui window` may target (mirrors the desktop frontend's
@@ -65,12 +66,18 @@ pub enum UiCmd {
         #[arg(long, default_value = "main")]
         window: String,
     },
-    /// Wait until a control (action id or label) is visible, or gone.
+    /// Wait until a control (action id or label) is present or gone, or the app is idle.
     Wait {
-        target: String,
+        /// Action id or label; omit with --idle.
+        #[arg(required_unless_present = "idle", conflicts_with = "idle")]
+        target: Option<String>,
         /// Wait until no visible control matches instead.
-        #[arg(long)]
+        #[arg(long, conflicts_with = "idle")]
         gone: bool,
+        /// Wait until no background job (import, parse, layout, translate,
+        /// sync, download, compile) has been queued or running for 0.75 s.
+        #[arg(long)]
+        idle: bool,
         /// Seconds before giving up (at most 120).
         #[arg(long, default_value_t = 10.0)]
         timeout: f64,
@@ -87,7 +94,7 @@ pub enum UiCmd {
         #[arg(long, default_value = "main")]
         window: String,
     },
-    /// Save a PNG of a running Agentero window (Windows only for now).
+    /// Save a PNG of a running Agentero window (Linux: page content only).
     Screenshot {
         #[arg(long, default_value = "main")]
         window: String,
@@ -196,9 +203,10 @@ pub fn run(cmd: UiCmd, globals: &GlobalOpts) -> Result<Value, CliError> {
         UiCmd::Wait {
             target,
             gone,
+            idle,
             timeout,
             window,
-        } => run_wait(target, gone, timeout, window),
+        } => run_wait(target, gone, idle, timeout, window),
         UiCmd::Slide {
             target,
             value,
@@ -281,7 +289,13 @@ fn run_local(
     request_local(request, Duration::from_secs(10))
 }
 
-fn run_wait(target: String, gone: bool, timeout: f64, window: String) -> Result<Value, CliError> {
+fn run_wait(
+    target: Option<String>,
+    gone: bool,
+    idle: bool,
+    timeout: f64,
+    window: String,
+) -> Result<Value, CliError> {
     let timeout_ms = (timeout * 1000.0).round();
     if !timeout_ms.is_finite() || timeout_ms < 1.0 || timeout_ms > UI_WAIT_MAX_MS as f64 {
         return Err(CliError::usage(format!(
@@ -290,13 +304,29 @@ fn run_wait(target: String, gone: bool, timeout: f64, window: String) -> Result<
         )));
     }
     let timeout_ms = timeout_ms as u64;
-    let spec = serde_json::to_string(&UiWaitSpec {
-        target,
-        gone,
-        timeout_ms,
-    })
-    .expect("wait spec serializes");
-    let request = UiRequestPayload::local_action(UI_ACTION_WAIT, Some(spec), window, None);
+    let request = match target {
+        // Answered by the Host from its job queue; any window works.
+        _ if idle => UiRequestPayload::local_action(
+            UI_ACTION_WAIT_IDLE,
+            Some(serde_json::to_string(&UiIdleSpec { timeout_ms }).expect("idle spec serializes")),
+            window,
+            None,
+        ),
+        Some(target) => {
+            let spec = serde_json::to_string(&UiWaitSpec {
+                target,
+                gone,
+                timeout_ms,
+            })
+            .expect("wait spec serializes");
+            UiRequestPayload::local_action(UI_ACTION_WAIT, Some(spec), window, None)
+        }
+        None => {
+            return Err(CliError::usage(
+                "Name a control to wait for, or pass --idle",
+            ))
+        }
+    };
     // The desktop answers when the wait ends; allow for request pickup on top.
     request_local(
         request,
@@ -453,7 +483,9 @@ fn request_local(request: UiRequestPayload, timeout: Duration) -> Result<Value, 
                 let mut response: Value = serde_json::from_str(&body)
                     .map_err(|error| CliError::message(error.to_string()))?;
                 if let Some(error) = response.get("error").and_then(Value::as_str) {
+                    let code = response.get("code").and_then(Value::as_str);
                     return Err(action_error(
+                        action_code(code),
                         format!("{error} (action {action_id})"),
                         &action_id,
                     ));
@@ -474,17 +506,53 @@ fn request_local(request: UiRequestPayload, timeout: Duration) -> Result<Value, 
     }
     let _ = std::fs::remove_file(&path);
     Err(action_error(
+        "no_ack",
         format!(
-            "Agentero did not acknowledge the action. Check that the requested window is open. (action {action_id})"
+            "Agentero did not acknowledge the action. Check that the app is running and the requested window is open. (action {action_id})"
         ),
         &action_id,
     ))
 }
 
+/// Error codes the desktop may report for a dispatched local action
+/// (documented in docs/backend/cli.md). Unknown or missing codes, such as
+/// failures from older apps, become `action_failed`.
+const ACTION_ERROR_CODES: &[&str] = &[
+    "control_not_found",
+    "control_ambiguous",
+    "control_disabled",
+    "control_obscured",
+    "occurrence_out_of_range",
+    "not_a_slider",
+    "value_out_of_range",
+    "slider_unresponsive",
+    "command_unavailable",
+    "shortcut_unavailable",
+    "invalid_key_chord",
+    "focus_in_frame",
+    "no_editable_focus",
+    "wait_timeout",
+    "window_not_open",
+    "window_minimized",
+    "window_hidden",
+    "capture_failed",
+    "capture_blank",
+    "unsupported_platform",
+    "unsupported_action",
+    "invalid_argument",
+    "action_failed",
+];
+
+fn action_code(code: Option<&str>) -> &'static str {
+    code.and_then(|code| ACTION_ERROR_CODES.iter().find(|known| **known == code))
+        .copied()
+        .unwrap_or("action_failed")
+}
+
 /// A failed dispatched action; `details.actionId` matches the app log.
-fn action_error(message: String, action_id: &str) -> CliError {
+fn action_error(code: &'static str, message: String, action_id: &str) -> CliError {
     CliError::with_details(
-        "message",
+        code,
         message,
         serde_json::json!({ "actionId": action_id }),
         ExitCode::Business,

@@ -28,7 +28,8 @@ Headless Vault / Catalog / Wiki 接口；**不含** BYOA / paper-reader。
 | `doctor` | Vault 结构与 Catalog 诊断；含 wikilink 检查与 aliases / 视觉批注 / catalog 去重修复 |
 | `layout` | 侧栏同构版面索引：`list` / `get` / `analyze`（figure / table / algorithm / formula / section / paragraph）；`analyze` 用远程 Provider 生成 sidecar |
 | `mark` | 阅读标注：`list` / `get` / `add`（`--quote` 文字锚点或 `--region` 区域锚点）/ `update` / `delete` |
-| `ui` | 桌面工作区操作 `open` / `close` / `window` / `split`，以及运行中窗口的 `actions` / `shortcut` / `command` / `click` / `fill` / `key` |
+| `ui` | 桌面工作区操作 `open` / `close` / `window` / `split`，以及运行中窗口的 `actions` / `shortcut` / `command` / `click` / `fill` / `key` / `wait` / `slide` / `screenshot` |
+| `logs` | 读取桌面 App 日志：`path` / `tail`（`--since <actionId>`、`--level`、`--grep`） |
 | `settings` | 读取和修改应用、Agent、插件、Vault Doctor 与 CLI 配置 |
 | `translate` | 免费机器翻译纯文本（无需 API Key，不读桌面 settings） |
 | `table` | 科研表格行操作：`query` / `upsert` / `update-cells`（与桌面网格共用 `*.table.json`） |
@@ -636,6 +637,7 @@ agentero ui click chatgpt.page.ask
 agentero ui click chatgpt.quote.attach
 agentero ui wait settings.general.language --timeout 5
 agentero ui wait "<对话框按钮>" --gone
+agentero ui wait --idle --timeout 60
 agentero ui slide pdf.zoom.slider 150
 agentero ui slide settings.appearance.fontSize max --window settings
 agentero ui slide settings.appearance.fontSize -2 --window settings
@@ -644,10 +646,33 @@ agentero ui screenshot --window settings -o settings.png --overwrite
 ```
 
 - `actions` 列出当前窗口可用的命令、全局快捷键和可见控件。`--json` 输出中每个控件带 `role`，有可观察状态时带 `state`：`checked`（勾选框、开关、单选，可能为 `"mixed"`）、`selected`、`expanded`、`pressed`、`focused`，输入框、文本域、下拉框和可编辑区的 `value`（最多 200 字符），滑动条的 `value` / `min` / `max` / `step`。禁用的控件不在列表中。文本输出在控件后附状态，滑动条行以 `slide` 开头。
-- `wait` 等待匹配操作 ID 或名称的控件出现，加 `--gone` 等待它消失；默认 10 秒，`--timeout` 最多 120 秒。控件只要已渲染、未禁用就算出现，不要求在视口内。超时以非零状态退出。返回的 `controls` 带每个匹配控件的状态和 `visible`。等待期间同一窗口的其他 `ui` 动作排在其后，排队超过 8 秒会过期，脚本应顺序执行。
+- `wait` 等待匹配操作 ID 或名称的控件出现，加 `--gone` 等待它消失；默认 10 秒，`--timeout` 最多 120 秒。控件只要已渲染、未禁用就算出现，不要求在视口内。超时以非零状态退出。返回的 `controls` 带每个匹配控件的状态和 `visible`。等待期间同一窗口的其他 `ui` 动作排在其后，排队超过 8 秒会过期，脚本应顺序执行。`wait --idle` 由 Host 回答，不需要指定控件：等到后台任务队列（入库、解析、版面分析、翻译、同步、下载、编译等 JobCenter 任务）连续 0.75 秒没有排队或运行中的任务；超时错误列出仍在进行的任务种类和数量。Agent 回复、PDF 渲染和网络请求不在任务队列里，请用 `ui wait <结果控件>` 等待。
 - `slide` 把滑动条设为数值、`min`、`max`，或按 `+N` / `-N` 移动 N 个步长（1 到 10000）。带正负号的纯整数总是步数，负的绝对值写成 `-3.0`。原生 `<input type=range>` 走与拖动相同的 input 事件；只有 ARIA `role=slider` 的控件用方向键、Home / End 驱动。超出范围的数值直接报错，不会被截断。返回值包含设置前后的值和范围；实际值按滑动条步长取整，应用拒绝时为原值。
-- `screenshot` 由桌面 Host 截取整个原生窗口，包括 PDF 画布与 ChatGPT 子 WebView，被其它窗口遮挡也能截到，按显示器实际像素输出 PNG。窗口最小化、隐藏或截图全黑时返回错误。输出文件用 `-o` / `--out` 指定（全局 `--output` 是输出格式），默认为当前目录的 `agentero-<window>-<毫秒时间戳>.png`，已有文件需加 `--overwrite`。目前只支持 Windows；其它平台返回明确错误，请用系统截图工具。
-- 本地 `ui` 动作（`actions`、`shortcut`、`command`、`click`、`key`、`fill`、`wait`、`slide`、`screenshot`）的结果都带 `actionId`；已投递但失败或超时的动作，错误 JSON 的 `error.details.actionId` 给出同一 id。应用日志以同一 id 记录 `op start ui_action id=…` 与 `op end ui_action … id=…`，可用 `grep <actionId> agentero.log` 定位本次动作，再读其后的日志行。`ui open/close/window/split` 的 `actionId` 记录在 `op end ui_request delivery=…`。`fill` 的文本不写入日志。控件有操作 ID 时优先使用 ID。也可使用当前界面语言的完整名称，同名控件用从 1 开始的 `occurrence` 选择。菜单或模态对话框打开时，列表以当前交互范围为准。
+- `screenshot` 由桌面 Host 截图，窗口最小化、隐藏或截图全黑时返回错误：
+  - Windows：截取整个原生窗口，包括标题栏、PDF 画布与 ChatGPT 子 WebView，被其它窗口遮挡也能截到，按显示器实际像素输出 PNG。
+  - macOS：用系统 `screencapture -l` 截取原生窗口。第一次使用时系统会请求「屏幕录制」权限，需要在「系统设置 > 隐私与安全性」中允许 Agentero（开发时是启动它的终端），未授权时返回 `capture_failed`。
+  - Linux：由 WebKitGTK 截取主 WebView 的可见页面（X11 与 Wayland 均可），不含标题栏和 ChatGPT 子 WebView。
+
+  输出文件用 `-o` / `--out` 指定（全局 `--output` 是输出格式），默认为当前目录的 `agentero-<window>-<毫秒时间戳>.png`，已有文件需加 `--overwrite`。
+- 本地 `ui` 动作（`actions`、`shortcut`、`command`、`click`、`key`、`fill`、`wait`、`slide`、`screenshot`）的结果都带 `actionId`；已投递但失败或超时的动作，错误 JSON 的 `error.details.actionId` 给出同一 id。应用日志以同一 id 记录 `op start ui_action id=…` 与 `op end ui_action … id=…`，可用 `agentero logs tail --since <actionId>` 读取本次动作及其后的日志。`ui open/close/window/split` 的 `actionId` 记录在 `op end ui_request delivery=…`。`fill` 的文本不写入日志。控件有操作 ID 时优先使用 ID。也可使用当前界面语言的完整名称，同名控件用从 1 开始的 `occurrence` 选择。菜单或模态对话框打开时，列表以当前交互范围为准。
+- 已投递的本地动作失败时，`error.code` 说明原因，退出码均为 1。没有应答（`no_ack`）时，先确认应用在运行、目标窗口已打开。
+
+  | `error.code` | 含义 | 脚本通常怎么做 |
+  |---|---|---|
+  | `control_not_found` | 没有匹配的控件 | 先 `ui wait`，或检查 ID / 名称 |
+  | `control_obscured` | 控件已渲染但被遮住或不在可见区域 | 关闭遮挡的弹层，或先滚动 / 导航 |
+  | `control_disabled` | 匹配的控件被禁用 | 先完成让它可用的前置步骤 |
+  | `control_ambiguous` | 匹配到多个控件 | 加 `--occurrence` 或改用操作 ID |
+  | `occurrence_out_of_range` | `--occurrence` 超过匹配数量 | 重新 `ui actions` |
+  | `not_a_slider` / `value_out_of_range` / `slider_unresponsive` | `slide` 的目标或数值不对，或 ARIA 滑块不响应方向键 | 修正参数 |
+  | `command_unavailable` / `shortcut_unavailable` | 命令当前不可用，或该窗口没有全局快捷键 | 先进入对应界面 |
+  | `invalid_key_chord` / `focus_in_frame` / `no_editable_focus` | `key` / `fill` 的参数或焦点不对 | 先点击目标输入框 |
+  | `wait_timeout` | `wait` 超时 | 视为失败，或加大 `--timeout` |
+  | `window_not_open` / `window_minimized` / `window_hidden` | 目标窗口不存在、最小化或隐藏 | `ui window` 打开或恢复窗口 |
+  | `capture_failed` / `capture_blank` / `unsupported_platform` | 截图失败、全黑，或平台不支持 | 见上方 `screenshot` |
+  | `no_ack` | 应用在超时内没有应答 | 启动应用后重试 |
+  | `action_failed` | 其它失败（包括旧版应用未给出原因） | 读 `error.message` 和日志 |
+
 - `shortcut` 按稳定 ID 调用现有快捷键处理器，遵循快捷键开关、平台、焦点和弹层条件。`command` 使用命令面板的 ID 和可用条件。
 - `click` 使用应用内键盘导航已有的控件激活流程，等待目标控件出现最多 2 秒。唯一匹配的控件若被滚动容器裁出可见区域，按名称或操作 ID 点击会先将其滚入视野。例如可用 `agentero ui click library.column.sort.date` 点击裁出的日期排序按钮。加 `--right` 触发应用自己的右键菜单。`key` 把按键交给当前焦点的应用端事件处理器，支持 `Ctrl`、`Alt`、`Shift` 和 `Meta` 组合，也能在聚焦的可编辑区执行全选。
 - `fill` 替换当前聚焦的应用文本输入框或文本域，触发应用的输入逻辑，支持空值清空。密码和令牌设置使用对应的 `settings` 命令。

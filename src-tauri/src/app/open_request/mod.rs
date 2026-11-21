@@ -11,6 +11,10 @@ pub use agentero_core::features::open_request::*;
 #[cfg(feature = "desktop")]
 pub mod commands;
 #[cfg(feature = "desktop")]
+mod host_action;
+#[cfg(feature = "desktop")]
+mod idle;
+#[cfg(feature = "desktop")]
 mod screenshot;
 
 #[cfg(feature = "desktop")]
@@ -318,14 +322,19 @@ pub fn spawn_cli_open_request_watcher<R: Runtime>(app: AppHandle<R>) {
                     tauri::async_runtime::spawn_blocking(move || screenshot::handle(&app, &req));
                     continue;
                 }
+                if req.action == UI_ACTION_WAIT_IDLE {
+                    tauri::async_runtime::spawn(idle::handle(app.clone(), req));
+                    continue;
+                }
                 let label = req.window.as_deref().unwrap_or("main");
                 if app.get_webview(label).is_some() {
                     local_actions.push(req);
-                } else if let Some(id) = req.reference.as_deref() {
-                    let response = serde_json::json!({
-                        "error": format!("Agentero window {label} is not open")
-                    });
-                    let _ = write_local_ui_response(id, &response.to_string());
+                } else if let Some(action) = host_action::HostAction::start(&req) {
+                    // Logged like any other action so `logs tail --since` finds it.
+                    action.finish(Err(host_action::HostActionError::new(
+                        "window_not_open",
+                        format!("Agentero window {label} is not open"),
+                    )));
                 }
             }
             if !local_actions.is_empty() {

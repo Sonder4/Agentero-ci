@@ -42,6 +42,9 @@ pub const UI_ACTION_WAIT: &str = "wait";
 pub const UI_ACTION_SLIDE: &str = "slide";
 /// Capture the native window to a PNG next to the request file.
 pub const UI_ACTION_SCREENSHOT: &str = "screenshot";
+/// Wait until the Host job queue stays empty; `path` carries [`UiIdleSpec`].
+/// Answered by the Host itself, not by a renderer.
+pub const UI_ACTION_WAIT_IDLE: &str = "wait-idle";
 const CHATGPT_UI_REQUEST_MAX_BYTES: usize = 24 * 1024 * 1024;
 pub const LOCAL_UI_ACTIONS: &[&str] = &[
     "actions",
@@ -53,6 +56,7 @@ pub const LOCAL_UI_ACTIONS: &[&str] = &[
     UI_ACTION_WAIT,
     UI_ACTION_SLIDE,
     UI_ACTION_SCREENSHOT,
+    UI_ACTION_WAIT_IDLE,
     UI_ACTION_CHATGPT,
 ];
 
@@ -71,6 +75,13 @@ pub struct UiWaitSpec {
     pub timeout_ms: u64,
 }
 
+/// `ui wait --idle` arguments, JSON-encoded in [`UiRequestPayload::path`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct UiIdleSpec {
+    pub timeout_ms: u64,
+}
+
 /// `ui slide` arguments, JSON-encoded in [`UiRequestPayload::path`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -86,6 +97,12 @@ pub struct UiSlideSpec {
 impl UiWaitSpec {
     fn is_valid(&self) -> bool {
         valid_control_target(&self.target) && (1..=UI_WAIT_MAX_MS).contains(&self.timeout_ms)
+    }
+}
+
+impl UiIdleSpec {
+    fn is_valid(&self) -> bool {
+        (1..=UI_WAIT_MAX_MS).contains(&self.timeout_ms)
     }
 }
 
@@ -667,6 +684,9 @@ fn local_ui_id(req: &UiRequestPayload) -> Result<uuid::Uuid, AppError> {
         "actions" | UI_ACTION_SCREENSHOT => req.path.is_none(),
         UI_ACTION_WAIT => req.path.as_deref().is_some_and(|spec| {
             serde_json::from_str::<UiWaitSpec>(spec).is_ok_and(|spec| spec.is_valid())
+        }),
+        UI_ACTION_WAIT_IDLE => req.path.as_deref().is_some_and(|spec| {
+            serde_json::from_str::<UiIdleSpec>(spec).is_ok_and(|spec| spec.is_valid())
         }),
         UI_ACTION_SLIDE => req.path.as_deref().is_some_and(|spec| {
             serde_json::from_str::<UiSlideSpec>(spec).is_ok_and(|spec| spec.is_valid())

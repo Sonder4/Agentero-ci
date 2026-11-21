@@ -1,6 +1,6 @@
 # CLI 驱动的 UI 自动化（需求与缺口）
 
-> 状态：**部分实现**。`agentero ui actions / click / fill / key / shortcut / command / wait / slide / screenshot`、`ui open / close / window / split` 已实现（见 [../backend/cli.md](../backend/cli.md#触发运行中窗口的控件)）。`ui actions --json` 输出控件状态，所有 `ui` 动作返回写入日志的 `actionId`。`--idle` 等待、独立的日志读取命令、非 Windows 截图与分类错误码尚未实现，本文记录需求。总则见根目录 `AGENTS.md`「UI 可脚本化（CLI 驱动）」。
+> 状态：**部分实现**。`agentero ui actions / click / fill / key / shortcut / command / wait / slide / screenshot`、`ui open / close / window / split` 已实现（见 [../backend/cli.md](../backend/cli.md#触发运行中窗口的控件)）。`ui wait --idle`、`agentero logs`、三平台截图和按原因区分的错误码也已实现。`ui actions --json` 输出控件状态，所有 `ui` 动作返回写入日志的 `actionId`。本文记录需求、已实现内容与仍然存在的限制。总则见根目录 `AGENTS.md`「UI 可脚本化（CLI 驱动）」。
 
 ## 目标
 
@@ -38,12 +38,16 @@ ui actions → ui click / fill / key → 等待界面稳定 → 截图 → 读�
 - **截图**：`ui screenshot [--window] [-o] [--overwrite]`，Host 用 `PrintWindow(PW_RENDERFULLCONTENT)` 截取原生窗口，最小化、隐藏或全黑时报错。
 - **动作关联**：本地 `ui` 动作返回 `actionId`，应用日志的 `op start/end ui_action id=…` 使用同一 id；工作区动作记录为 `op end ui_request delivery=…`。
 
-### 待实现
+- **空闲等待**：`ui wait --idle` 由 Host 轮询 JobCenter，队列连续 0.75 秒为空才算空闲。
+- **日志读取**：`agentero logs path` / `logs tail [--since <actionId>] [--level] [--grep] [-n]`，自动定位各平台日志目录并跨轮转文件读取。
+- **其它平台截图**：macOS 用 `screencapture -l` 截原生窗口（需要屏幕录制权限）；Linux 用 WebKitGTK 截主 WebView 的可见页面。
+- **错误语义**：前端与 Host 回传 `code`，CLI 原样写入 `error.code`，完整列表见 [../backend/cli.md](../backend/cli.md#触发运行中窗口的控件)。
 
-1. **空闲等待**：`ui wait --idle` 等后台任务队列与正在进行的加载结束。需要先定义哪些任务算「忙」（入库、翻译、PDF 渲染）。
-2. **日志读取**：`agentero logs tail [--since <动作 id>] [--grep] [--level]`。现在可用 `grep <actionId>` 直接读 `agentero.log`。
-3. **其它平台截图**：macOS 需要屏幕录制权限与 ScreenCaptureKit，Linux 视窗口系统而定。
-4. **错误语义**：控件不存在、被禁用、被遮挡、窗口未挂载分别返回不同的 `error.code`，脚本能据此决定重试还是失败。
+### 仍然存在的限制
+
+1. `--idle` 只看 JobCenter 任务。Agent 流式回复、PDF 渲染、网络请求不在其中，要用 `ui wait <结果控件>`。空闲车道的后台补齐任务（如大 Vault 的页数统计、双链重建）也算忙，可能让 `--idle` 等到超时。
+2. Linux 截图不含标题栏和 ChatGPT 子 WebView；macOS 第一次使用要手动授权，未授权时可能截到空白内容。两者都还没有在真机上验证：macOS 代码由日常 CI 的 macOS 任务编译，Linux 桌面代码只在 Release 构建中编译。
+3. 禁用控件仍不出现在 `ui actions` 中，只能通过 `control_disabled` 错误得知。
 
 ### Windows 桌面实测（2026-11-20 至 2026-11-21）
 

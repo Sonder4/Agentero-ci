@@ -30,6 +30,22 @@ const LOCAL_ACTIONS = new Set([
 	"slide",
 ]);
 
+/**
+ * A failure reported to the CLI as `error.code`. Codes are a script contract
+ * (docs/backend/cli.md); add new ones there and to the CLI list in ui.rs.
+ */
+class UiActionError extends Error {
+	readonly code: string;
+	constructor(code: string, message: string) {
+		super(message);
+		this.code = code;
+	}
+}
+
+function fail(code: string, message: string): never {
+	throw new UiActionError(code, message);
+}
+
 export function isDesktopUiAction(action: string): boolean {
 	return LOCAL_ACTIONS.has(action);
 }
@@ -232,7 +248,17 @@ function controlPoint(element: HTMLElement) {
 	}
 }
 
-function availableControls() {
+function isDisabled(element: HTMLElement) {
+	return Boolean(
+		element.matches(":disabled") ||
+			element.closest(
+				"[aria-disabled=true], [data-disabled]:not([data-disabled=false])",
+			),
+	);
+}
+
+/** Rendered controls in the current interaction scope, disabled ones included. */
+function renderedControls() {
 	const active = document.activeElement;
 	const modal = topKeyboardModal(document);
 	const scope =
@@ -243,10 +269,7 @@ function availableControls() {
 		scope.querySelectorAll<HTMLElement>(CONTROL_SELECTOR),
 	).flatMap((element) => {
 		if (
-			element.closest(
-				"[aria-hidden=true], [inert], [aria-disabled=true], [hidden], [data-disabled]:not([data-disabled=false])",
-			) ||
-			element.matches(":disabled") ||
+			element.closest("[aria-hidden=true], [inert], [hidden]") ||
 			getComputedStyle(element).visibility !== "visible" ||
 			!element.getClientRects().length
 		)
@@ -256,6 +279,10 @@ function availableControls() {
 			`[${element.getAttribute("role") ?? element.localName}]`;
 		return [{ id: element.dataset.uiAction, label, element }];
 	});
+}
+
+function availableControls() {
+	return renderedControls().filter(({ element }) => !isDisabled(element));
 }
 
 function visibleControls(controls = availableControls()) {
@@ -270,13 +297,32 @@ function visibleControls(controls = availableControls()) {
 	});
 }
 
-/** Enabled, rendered controls matching an action id, else an exact label. */
-function matchingControls(target: string) {
-	const controls = availableControls();
+/** Controls matching an action id, else an exact label. */
+function matchControls<T extends { id?: string; label: string }>(
+	controls: T[],
+	target: string,
+) {
 	const byId = controls.filter((control) => control.id === target);
 	return byId.length
 		? byId
 		: controls.filter((control) => control.label === target);
+}
+
+/** Enabled, rendered controls matching an action id, else an exact label. */
+function matchingControls(target: string) {
+	return matchControls(availableControls(), target);
+}
+
+/** Why no enabled, visible control matched, as a coded error. */
+function missingControl(target: string): never {
+	if (matchingControls(target).length)
+		fail(
+			"control_obscured",
+			`"${target}" is rendered but covered or outside the visible area.`,
+		);
+	if (matchControls(renderedControls(), target).length)
+		fail("control_disabled", `"${target}" is disabled.`);
+	fail("control_not_found", `No enabled control matches "${target}".`);
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -308,12 +354,18 @@ async function resolveControl(target: string, index: number | undefined) {
 		await sleep(125);
 		matches = findControls();
 	}
+	if (!matches.length) missingControl(target);
 	if (matches.length > 1 && index == null)
-		throw new Error(
-			`Multiple controls match "${target}". Choose --occurrence from ui actions.`,
+		fail(
+			"control_ambiguous",
+			`${matches.length} controls match "${target}". Choose --occurrence from ui actions.`,
 		);
 	const control = matches[(index ?? 1) - 1];
-	if (!control) throw new Error(`No enabled control matches "${target}".`);
+	if (!control)
+		fail(
+			"occurrence_out_of_range",
+			`Only ${matches.length} control(s) match "${target}".`,
+		);
 	return control;
 }
 
@@ -347,7 +399,8 @@ async function waitForControl({ target, gone = false, timeoutMs }: WaitSpec) {
 		}
 		const left = deadline - Date.now();
 		if (left <= 0)
-			throw new Error(
+			fail(
+				"wait_timeout",
 				`Timed out after ${timeoutMs} ms waiting for "${target}" to ${gone ? "disappear" : "appear"}.`,
 			);
 		await sleep(Math.min(100, left));
@@ -364,7 +417,7 @@ async function slideControl({ target, occurrence, value: raw }: SlideSpec) {
 	const value = raw.trim();
 	const { element } = await resolveControl(target, occurrence);
 	const range = sliderRange(element);
-	if (!range) throw new Error(`"${target}" is not a slider.`);
+	if (!range) fail("not_a_slider", `"${target}" is not a slider.`);
 	const { min, max } = range;
 	const before = range.value;
 	const steps = /^[+-]\d+$/.test(value) ? Number(value) : undefined;
@@ -380,7 +433,10 @@ async function slideControl({ target, occurrence, value: raw }: SlideSpec) {
 						? before + steps * step
 						: Number(value);
 		if (next < min || next > max)
-			throw new Error(`${next} is outside the slider range ${min}–${max}.`);
+			fail(
+				"value_out_of_range",
+				`${next} is outside the slider range ${min}–${max}.`,
+			);
 		// Native setter + input event: the same path as dragging the thumb.
 		Object.getOwnPropertyDescriptor(
 			HTMLInputElement.prototype,
@@ -428,14 +484,17 @@ async function slideWithKeys(
 	}
 	const goal = Number(value);
 	if (goal < min || goal > max)
-		throw new Error(`${goal} is outside the slider range ${min}–${max}.`);
+		fail(
+			"value_out_of_range",
+			`${goal} is outside the slider range ${min}–${max}.`,
+		);
 	for (let i = 0; i < 1000 && current() !== goal; i++) {
 		const was = current();
 		const up = was < goal;
 		await press(up ? "ArrowRight" : "ArrowLeft");
 		const now = current();
 		if (now === was)
-			throw new Error("The slider did not respond to arrow keys.");
+			fail("slider_unresponsive", "The slider did not respond to arrow keys.");
 		// Stepped past the goal: keep whichever side is closer.
 		if (up ? now > goal : now < goal) {
 			if (Math.abs(now - goal) > Math.abs(was - goal))
@@ -482,7 +541,10 @@ function dispatchKey(chord: string) {
 			(mod) => !["ctrl", "alt", "shift", "meta"].includes(mod),
 		)
 	)
-		throw new Error("Expected a key chord such as Ctrl+f or Shift+ArrowRight.");
+		fail(
+			"invalid_key_chord",
+			"Expected a key chord such as Ctrl+f or Shift+ArrowRight.",
+		);
 	const key = rawKey === "Plus" ? "+" : rawKey;
 	const code = /^[a-z]$/i.test(key)
 		? `Key${key.toUpperCase()}`
@@ -491,7 +553,7 @@ function dispatchKey(chord: string) {
 			: key;
 	const target = document.activeElement ?? document.body;
 	if (target instanceof HTMLIFrameElement)
-		throw new Error("The focused frame handles its own keyboard input.");
+		fail("focus_in_frame", "The focused frame handles its own keyboard input.");
 	const init = {
 		key,
 		code,
@@ -532,7 +594,8 @@ function fillFocusedInput(value: string): void {
 				? HTMLInputElement.prototype
 				: null;
 	if (!prototype || !field || field.matches(":disabled, [readonly]")) {
-		throw new Error(
+		fail(
+			"no_editable_focus",
 			"Focus an editable Agentero text field before using ui fill.",
 		);
 	}
@@ -576,13 +639,13 @@ async function runDesktopAction(request: UiRequestPayload) {
 		}
 		case "shortcut":
 			if (!shortcutActions)
-				throw new Error("This window has no global shortcuts.");
+				fail("shortcut_unavailable", "This window has no global shortcuts.");
 			shortcutActions.run(target);
 			break;
 		case "command": {
 			const command = listCommands().find(({ id }) => id === target);
 			if (!command || command.when?.() === false)
-				throw new Error(`Command is unavailable: ${target}`);
+				fail("command_unavailable", `Command is unavailable: ${target}`);
 			await command.run();
 			break;
 		}
@@ -608,7 +671,7 @@ async function runDesktopAction(request: UiRequestPayload) {
 				lines: ["Filled the focused input"],
 			};
 		default:
-			throw new Error("Unknown desktop action.");
+			fail("unsupported_action", "Unknown desktop action.");
 	}
 	return {
 		action: request.action,
@@ -644,10 +707,16 @@ export function DesktopUiActionListener() {
 						logger.info("op start ui_action", fields);
 						const result = await runDesktopAction(request).catch((error) => ({
 							error: errorText(error),
+							code:
+								error instanceof UiActionError ? error.code : "action_failed",
 						}));
 						const end = `op end ui_action ok=${!("error" in result)} duration_ms=${Math.round(performance.now() - started)}`;
 						if ("error" in result)
-							logger.warn(end, { ...fields, error: result.error });
+							logger.warn(end, {
+								...fields,
+								code: result.code,
+								error: result.error,
+							});
 						else logger.info(end, fields);
 						const reply = await commands.uiActionComplete(
 							request.reference,
