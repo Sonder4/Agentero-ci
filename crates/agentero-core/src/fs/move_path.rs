@@ -27,8 +27,13 @@ fn move_file_ex(from: &Path, to: &Path) -> io::Result<()> {
     use std::os::windows::ffi::OsStrExt;
     use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_WRITE_THROUGH};
 
+    // Callers often pass canonicalized `\\?\C:\...` paths. `MoveFileExW` is
+    // refused with access denied for those in the same case where it accepts
+    // the plain `C:\...` form, so drop the verbatim prefix whenever the path
+    // is still valid without it (`dunce` keeps it for long or reserved names).
     let wide = |path: &Path| {
-        path.as_os_str()
+        dunce::simplified(path)
+            .as_os_str()
             .encode_wide()
             .chain(Some(0))
             .collect::<Vec<u16>>()
