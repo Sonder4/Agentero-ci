@@ -1,11 +1,12 @@
 //! Multi-window helpers.
 
 use sha2::{Digest, Sha256};
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 use tauri::{
     webview::{NewWindowResponse, WebviewBuilder},
-    AppHandle, Emitter, EventTarget, LogicalPosition, LogicalSize, Manager, Url, WebviewUrl,
-    WebviewWindowBuilder,
+    LogicalPosition, LogicalSize, Url,
 };
+use tauri::{AppHandle, Emitter, EventTarget, Manager, WebviewUrl, WebviewWindowBuilder};
 
 use crate::core::log_util::OpTimer;
 
@@ -25,14 +26,19 @@ const TRAFFIC_LIGHT_X: f64 = 14.0;
 const SETTINGS_TRAFFIC_LIGHT_Y: f64 = 16.0;
 
 pub const SETTINGS_WINDOW_LABEL: &str = "settings";
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 pub const CHATGPT_SIDEBAR_WEBVIEW_LABEL: &str = "chatgpt-sidebar";
 pub const SETTINGS_SECTION_REQUESTED_EVENT: &str = "settings:section-requested";
 pub const SETTINGS_VAULT_REQUESTED_EVENT: &str = "settings:vault-requested";
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 const CHATGPT_URL: &str = "https://chatgpt.com/";
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 const CHATGPT_QUERY_MAX_BYTES: usize = 32 * 1024;
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 static CHATGPT_WEBVIEW_OPEN_LOCK: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[derive(Debug, Clone, Copy, serde::Deserialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ChatGptSidebarBounds {
@@ -86,6 +92,7 @@ fn raise_existing_window(window: &tauri::WebviewWindow) {
     let _ = window.set_focus();
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 fn chatgpt_url(query: Option<&str>) -> Result<Url, String> {
     let mut url = Url::parse(CHATGPT_URL).map_err(|_| "chatgpt_url_invalid".to_string())?;
     let Some(query) = query.map(str::trim).filter(|query| !query.is_empty()) else {
@@ -98,10 +105,12 @@ fn chatgpt_url(query: Option<&str>) -> Result<Url, String> {
     Ok(url)
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 fn is_safe_chatgpt_navigation(url: &Url) -> bool {
     matches!(url.scheme(), "https" | "about")
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 fn chatgpt_sidebar_geometry(
     bounds: ChatGptSidebarBounds,
 ) -> Result<(LogicalPosition<f64>, LogicalSize<f64>), String> {
@@ -223,6 +232,7 @@ pub async fn window_new(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 /// Open, position, and focus the ChatGPT child WebView embedded in Agentero's
 /// right rail. The child reuses the main window's persistent WebView2
 /// environment and proxy snapshot. Its webview label is absent from Tauri
@@ -306,6 +316,7 @@ pub async fn chatgpt_sidebar_open(
     Ok(())
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 #[tauri::command]
 #[specta::specta]
 pub async fn chatgpt_sidebar_attach_quote(
@@ -340,6 +351,7 @@ pub async fn chatgpt_sidebar_attach_quote(
     }
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 fn chatgpt_quote_filename(preview: &str, quote: &str) -> String {
     let title: String = preview
         .chars()
@@ -365,6 +377,7 @@ fn chatgpt_quote_filename(preview: &str, quote: &str) -> String {
     format!("{title} · {}.md", &hash[..8])
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 async fn attach_chatgpt_quote(
     webview: &tauri::Webview,
     url: &str,
@@ -410,6 +423,7 @@ async fn attach_chatgpt_quote(
     Err(("attachment_unconfirmed", status))
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 async fn eval_chatgpt_quote(
     webview: &tauri::Webview,
     request: &serde_json::Value,
@@ -418,6 +432,7 @@ async fn eval_chatgpt_quote(
     eval_chatgpt_script(webview, format!("{script}({request});")).await
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 pub(super) async fn eval_chatgpt_script<R: tauri::Runtime, T: serde::de::DeserializeOwned>(
     webview: &tauri::Webview<R>,
     script: String,
@@ -434,6 +449,7 @@ pub(super) async fn eval_chatgpt_script<R: tauri::Runtime, T: serde::de::Deseria
     serde_json::from_str(&result).ok()
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 /// Hide the embedded ChatGPT WebView when the right rail is closed or another
 /// rail surface is active. The WebView and its page state remain mounted.
 #[tauri::command]
@@ -445,6 +461,7 @@ pub fn chatgpt_sidebar_hide(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(not(any(target_os = "ios", target_os = "android")))]
 /// Destroy the embedded ChatGPT WebView. Used only when the main page unloads.
 #[tauri::command]
 #[specta::specta]

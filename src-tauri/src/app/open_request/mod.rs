@@ -309,6 +309,7 @@ pub fn spawn_cli_open_request_watcher<R: Runtime>(app: AppHandle<R>) {
             tokio::time::sleep(Duration::from_millis(400)).await;
             let mut local_actions = Vec::new();
             for req in take_local_ui_requests() {
+                #[cfg(not(any(target_os = "ios", target_os = "android")))]
                 if req.action == UI_ACTION_CHATGPT {
                     let app = app.clone();
                     tauri::async_runtime::spawn(async move {

@@ -200,6 +200,7 @@ pub fn attach_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<ta
             crate::integration::plugins::plugin_unload,
             #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::plugins::plugin_run,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_start,
             #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::integration::bridge::commands::bridge_stop,
@@ -262,9 +263,13 @@ pub fn attach_handlers(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<ta
             crate::app::terminal::commands::path_open_in_terminal,
             crate::app::terminal::commands::terminal_apps_probe,
             crate::app::window::commands::window_new,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::app::window::commands::chatgpt_sidebar_open,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::app::window::commands::chatgpt_sidebar_attach_quote,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::app::window::commands::chatgpt_sidebar_hide,
+            #[cfg(not(any(target_os = "ios", target_os = "android")))]
             crate::app::window::commands::chatgpt_sidebar_close,
             crate::app::window::commands::settings_window_open,
             crate::app::window::commands::feature_window_open,
